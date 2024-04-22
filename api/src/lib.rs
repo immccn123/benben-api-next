@@ -43,6 +43,7 @@ async fn start() -> Result<(), rocket::Error> {
         "https://aws-benben.imken.dev",
         "https://benben.imken.dev",
         "https://3000-immccn123-lgfeedfronten-3um3trd56q9.ws-us110.gitpod.io/",
+        "https://next-benben.imken.dev/",
     ]);
 
     let cors = (rocket_cors::CorsOptions {
