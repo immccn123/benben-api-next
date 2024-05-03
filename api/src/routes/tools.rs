@@ -1,4 +1,5 @@
 use crate::db_pool::Db;
+use crate::meilisearch::Client;
 use chrono::Duration;
 use chrono::TimeZone;
 use chrono::Utc;
@@ -8,6 +9,8 @@ use regex::Regex;
 use rocket::http;
 use sea_orm::prelude::*;
 use sea_orm::query::*;
+use sea_orm::sea_query::Func;
+use sea_orm::FromQueryResult;
 use sea_orm::{EntityTrait, QueryFilter};
 use sea_orm_rocket::Connection;
 use serde_json::json;
@@ -61,7 +64,50 @@ async fn get_feed(conn: Connection<'_, Db>, feed_id: i32) -> (http::Status, Json
         .await
         .expect("could not get benben by id");
 
-    if let Some(benben) = Some(benben) {
+    if let Some(benben) = benben {
+        (http::Status::Ok, json!(benben))
+    } else {
+        (
+            http::Status::NotFound,
+            json!({"detail": "Benben not found"}),
+        )
+    }
+}
+
+#[get("/tools/getRandom")]
+async fn get_random(conn: Connection<'_, Db>) -> (http::Status, JsonValue) {
+    use rand::rngs::StdRng;
+    use rand::{Rng, SeedableRng};
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[derive(FromQueryResult)]
+    struct CountQueryResult {
+        count: i32,
+    }
+
+    let db = conn.into_inner();
+
+    let total = benben::Entity::find()
+        .select_only()
+        .expr_as_(Func::max(Expr::col(benben::Column::Id)), "count")
+        .into_model::<CountQueryResult>()
+        .one(db)
+        .await
+        .expect("could not query")
+        .expect("type error")
+        .count;
+
+    let now = SystemTime::now();
+    let since_the_epoch = now.duration_since(UNIX_EPOCH).expect("Time went backwards");
+    let seed = since_the_epoch.as_secs() as u64;
+    let id = StdRng::seed_from_u64(seed).gen_range(0..=total);
+
+    let benben = benben::Entity::find_by_id(id)
+        .one(db)
+        .await
+        .expect("could not get benben by id");
+
+    if let Some(benben) = benben {
         (http::Status::Ok, json!(benben))
     } else {
         (
@@ -74,9 +120,9 @@ async fn get_feed(conn: Connection<'_, Db>, feed_id: i32) -> (http::Status, Json
 #[get(
     "/search/db?<keyword>&<senders>&<date_after>&<date_before>&<id_before>&<id_after>&<per_page>"
 )]
-async fn search(
+async fn search_db(
     conn: Connection<'_, Db>,
-    keyword: Option<String>,
+    keyword: Option<&str>,
     senders: Option<Vec<i32>>,
     date_after: Option<i64>,
     date_before: Option<i64>,
@@ -85,7 +131,9 @@ async fn search(
     per_page: Option<u64>,
 ) -> (http::Status, JsonValue) {
     let db = conn.into_inner();
-    let mut query = benben::Entity::find().select();
+    let mut query = benben::Entity::find()
+        .select()
+        .order_by_desc(benben::Column::Id);
     let per_page = match per_page {
         Some(x) => x,
         None => 50,
@@ -124,4 +172,64 @@ async fn search(
     (http::Status::Ok, json!(result))
 }
 
-export_routes![who_at_me, get_heatmap, get_feed, search];
+#[get("/search/mili?<keyword>&<offset>&<per_page>")]
+async fn search_mili(
+    conn: Client<'_>,
+    keyword: &str,
+    per_page: Option<usize>,
+    offset: Option<usize>,
+) -> (http::Status, JsonValue) {
+    // use meilisearch_sdk::*;
+
+    let idx = conn.into_inner().index("benben");
+
+    // let result: Vec<_> = idx
+    //     .search()
+    //     .with_query(keyword)
+    //     .with_attributes_to_highlight(Selectors::Some(&["content"]))
+    //     .with_attributes_to_search_on(&["content"])
+    //     .with_hits_per_page(per_page.unwrap_or(50))
+    //     .with_offset(offset.unwrap_or(0))
+    //     .execute::<String>()
+    //     // .execute::<entity::search::Benben>()
+    //     .await
+    //     .expect("could not search")
+    //     .hits
+    //     .iter()
+    //     .map(|x| {
+    //         json!({
+    //             "match": x.result.clone(), //.to_model(),
+    //             "ranking": x.ranking_score
+    //         })
+    //     })
+    //     .collect();
+
+    let result: Vec<_> = idx
+        .search()
+        .with_query(keyword)
+        .with_hits_per_page(per_page.unwrap_or(50))
+        .with_offset(offset.unwrap_or(0))
+        .execute::<entity::search::Benben>()
+        .await
+        .expect("could not search")
+        .hits
+        .iter()
+        .map(|x| {
+            json!({
+                "match": x.result.clone(), //.to_model(),
+                "ranking": x.ranking_score
+            })
+        })
+        .collect();
+
+    (http::Status::Ok, json!(result))
+}
+
+export_routes![
+    who_at_me,
+    get_heatmap,
+    get_feed,
+    search_db,
+    search_mili,
+    get_random,
+];

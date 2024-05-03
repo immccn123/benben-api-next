@@ -2,6 +2,7 @@ use entity::feed::{self as benben};
 use sea_orm::prelude::*;
 use sea_orm::query::*;
 use sea_orm::{EntityTrait, PaginatorTrait, QueryFilter, SelectColumns};
+use serde::{Deserialize, Serialize};
 
 use serde_json::json;
 
@@ -9,19 +10,26 @@ use sea_orm_rocket::Connection;
 
 use crate::db_pool::Db;
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct StatisticsResponse {
+    total_count: u64,
+    today_count: u64,
+    total_user: u64,
+    today_user: u64,
+}
+
+
 #[get("/statistics")]
-async fn get_statistics(conn: Connection<'_, Db>) -> JsonValue {
+async fn get_statistics(conn: Connection<'_, Db>) -> serde_json::Value {
     let db = conn.into_inner();
     let yesterday = chrono::Utc::now() - std::time::Duration::from_secs(24 * 60 * 60);
 
     let total_count = benben::Entity::find()
-        .select_column(benben::Column::Id)
         .count(db)
         .await
         .expect("could not get count of the data");
 
     let today_count = benben::Entity::find()
-        .select_column(benben::Column::Id)
         .filter(benben::Column::Time.gte(yesterday))
         .count(db)
         .await
@@ -42,12 +50,14 @@ async fn get_statistics(conn: Connection<'_, Db>) -> JsonValue {
         .await
         .expect("could not get today_user");
 
-    json!({
-        "total": total_count,
-        "today": today_count,
-        "total_user": total_user,
-        "today_user": today_user,
-    })
+    let resp = StatisticsResponse {
+        today_count,
+        today_user,
+        total_count,
+        total_user,
+    };
+
+    json!(resp)
 }
 
 #[get("/statistics/24h")]

@@ -5,12 +5,17 @@ extern crate lazy_static;
 #[macro_use]
 mod marco;
 mod db_pool;
+mod meilisearch;
 mod routes;
 
+use std::env;
+
 use db_pool::Db;
-use rocket::http::{Method, Status};
+use meilisearch::MeilisearchEngine;
+use rocket::fairing::AdHoc;
+use rocket::http::{Header, Status};
 use rocket::Request;
-use rocket_cors::{AllowedHeaders, AllowedOrigins};
+use rocket_cors::AllowedOrigins;
 use sea_orm_rocket::Database;
 
 macro_rules! get_routes {
@@ -55,6 +60,33 @@ async fn start() -> Result<(), rocket::Error> {
 
     rocket::build()
         .attach(Db::init())
+        .attach(MeilisearchEngine::init(
+            env::var("MEILISEARCH_URL").expect("MEILISEARCH_URL is not set"),
+            env::var("MEILISEARCH_KEY").ok(),
+        ))
+        .attach(AdHoc::on_request("Save Request Time", |req, _| {
+            Box::pin(async move {
+                req.add_header(Header::new(
+                    "X-Request-Time",
+                    chrono::Utc::now().to_rfc3339(),
+                ));
+            })
+        }))
+        .attach(AdHoc::on_response("Add Execute Time", |req, resp| {
+            Box::pin(async move {
+                if let Some(time) = req.headers().get_one("X-Request-Time") {
+                    if let Ok(request_time) = chrono::DateTime::parse_from_rfc3339(time) {
+                        resp.adjoin_header(Header::new(
+                            "X-Execute-Time",
+                            chrono::Utc::now()
+                                .signed_duration_since(request_time)
+                                .num_milliseconds()
+                                .to_string(),
+                        ));
+                    }
+                }
+            })
+        }))
         .attach(cors)
         .mount("/", get_routes!(statistics))
         .mount("/", get_routes!(black_history))

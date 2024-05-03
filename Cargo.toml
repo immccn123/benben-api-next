@@ -1,5 +1,5 @@
 [package]
-name = "lgfeed-api-localmachine-new"
+name = "benben-api-next"
 version = "0.1.0"
 edition = "2021"
 publish = false
@@ -12,3 +12,7 @@ members = [".", "api", "entity", "mili-writer"]
 [dependencies]
 dotenv = "0.15.0"
 api = { path = "api" }
+
+[profile.release]
+lto = true
+strip = "debuginfo"

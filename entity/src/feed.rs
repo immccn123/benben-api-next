@@ -14,6 +14,7 @@ pub struct Model {
     pub username: String,
     pub time: DateTime,
     pub content: String,
+    #[serde(skip_serializing)]
     pub hash: String,
     #[sea_orm(column_name = "grub_time")]
     pub grab_time: DateTime,
