@@ -1,5 +1,3 @@
-use std::borrow::Borrow;
-
 use rocket::{
     fairing::{Fairing, Info, Kind},
     http::Status,

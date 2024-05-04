@@ -7,16 +7,20 @@ mod marco;
 mod db_pool;
 mod meilisearch;
 mod routes;
+mod utils;
 
 use std::env;
+use std::time::Duration;
 
 use db_pool::Db;
 use meilisearch::MeilisearchEngine;
+use regex::RegexSet;
 use rocket::fairing::AdHoc;
 use rocket::http::{Header, Status};
 use rocket::Request;
 use rocket_cors::AllowedOrigins;
 use sea_orm_rocket::Database;
+use utils::cached_response::CacheTheResponse;
 
 macro_rules! get_routes {
     ($x:ident) => {{
@@ -64,6 +68,11 @@ async fn start() -> Result<(), rocket::Error> {
             env::var("MEILISEARCH_URL").expect("MEILISEARCH_URL is not set"),
             env::var("MEILISEARCH_KEY").ok(),
         ))
+        .attach(CacheTheResponse {
+            cache_time: Some(Duration::from_secs(60 * 60 * 24)),
+            routes: RegexSet::new([r#"^/proxy/userPic/(.*)$"#])
+                .expect("Cache the response: could not create the RegexSet"),
+        })
         .attach(AdHoc::on_request("Save Request Time", |req, _| {
             Box::pin(async move {
                 req.add_header(Header::new(
@@ -91,6 +100,7 @@ async fn start() -> Result<(), rocket::Error> {
         .mount("/", get_routes!(statistics))
         .mount("/", get_routes!(black_history))
         .mount("/", get_routes!(tools))
+        .mount("/", get_routes!(proxy))
         .mount("/", rocket_cors::catch_all_options_routes())
         .register("/", catchers![error_handler])
         .launch()
