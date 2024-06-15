@@ -1,4 +1,5 @@
 use crate::db_pool::Db;
+use crate::err::AppError;
 use crate::meilisearch::Client;
 use chrono::Duration;
 use chrono::TimeZone;
@@ -21,7 +22,7 @@ lazy_static! {
 }
 
 #[get("/tools/at/<username>")]
-async fn who_at_me(conn: Connection<'_, Db>, username: &str) -> JsonValue {
+async fn who_at_me(conn: Connection<'_, Db>, username: &str) -> Result<JsonValue, AppError> {
     let db = conn.into_inner();
     let time_after = Utc::now() - Duration::days(1);
 
@@ -31,8 +32,7 @@ async fn who_at_me(conn: Connection<'_, Db>, username: &str) -> JsonValue {
         .filter(benben::Column::Content.contains(username))
         .order_by_desc(benben::Column::Time)
         .all(db)
-        .await
-        .expect("error occured during querying who at me query");
+        .await?;
 
     let mut result = vec![];
     let username = username.to_lowercase();
@@ -43,11 +43,12 @@ async fn who_at_me(conn: Connection<'_, Db>, username: &str) -> JsonValue {
             let (_full, [name, _user_id]) = caps.extract();
             if name.to_lowercase() == username {
                 result.push(benben);
+                break;
             }
         }
     }
 
-    json!(result)
+    Ok(json!(result))
 }
 
 #[get("/tools/heatmap/<_uid>")]
@@ -56,26 +57,26 @@ async fn get_heatmap(_conn: Connection<'_, Db>, _uid: i32) {
 }
 
 #[get("/tools/getFeed/<feed_id>")]
-async fn get_feed(conn: Connection<'_, Db>, feed_id: i32) -> (http::Status, JsonValue) {
+async fn get_feed(
+    conn: Connection<'_, Db>,
+    feed_id: i32,
+) -> Result<(http::Status, JsonValue), AppError> {
     let db = conn.into_inner();
 
-    let benben = benben::Entity::find_by_id(feed_id)
-        .one(db)
-        .await
-        .expect("could not get benben by id");
+    let benben = benben::Entity::find_by_id(feed_id).one(db).await?;
 
     if let Some(benben) = benben {
-        (http::Status::Ok, json!(benben))
+        Ok((http::Status::Ok, json!(benben)))
     } else {
-        (
+        Ok((
             http::Status::NotFound,
-            json!({"detail": "Benben not found"}),
-        )
+            json!({ "detail": "Benben not found" }),
+        ))
     }
 }
 
 #[get("/tools/getRandom")]
-async fn get_random(conn: Connection<'_, Db>) -> (http::Status, JsonValue) {
+async fn get_random(conn: Connection<'_, Db>) -> Result<(http::Status, JsonValue), AppError> {
     use rand::rngs::StdRng;
     use rand::{Rng, SeedableRng};
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -92,9 +93,8 @@ async fn get_random(conn: Connection<'_, Db>) -> (http::Status, JsonValue) {
         .expr_as_(Func::max(Expr::col(benben::Column::Id)), "count")
         .into_model::<CountQueryResult>()
         .one(db)
-        .await
-        .expect("could not query")
-        .expect("type error")
+        .await?
+        .unwrap() // this will not happend
         .count;
 
     let now = SystemTime::now();
@@ -102,18 +102,15 @@ async fn get_random(conn: Connection<'_, Db>) -> (http::Status, JsonValue) {
     let seed = since_the_epoch.as_secs() as u64;
     let id = StdRng::seed_from_u64(seed).gen_range(0..=total);
 
-    let benben = benben::Entity::find_by_id(id)
-        .one(db)
-        .await
-        .expect("could not get benben by id");
+    let benben = benben::Entity::find_by_id(id).one(db).await?;
 
     if let Some(benben) = benben {
-        (http::Status::Ok, json!(benben))
+        Ok((http::Status::Ok, json!(benben)))
     } else {
-        (
+        Ok((
             http::Status::NotFound,
             json!({"detail": "Benben not found"}),
-        )
+        ))
     }
 }
 
@@ -129,7 +126,7 @@ async fn search_db(
     id_before: Option<i64>,
     id_after: Option<i64>,
     per_page: Option<u64>,
-) -> (http::Status, JsonValue) {
+) -> Result<(http::Status, JsonValue), AppError> {
     let db = conn.into_inner();
     let mut query = benben::Entity::find()
         .select()
@@ -167,12 +164,13 @@ async fn search_db(
 
     query = query.limit(per_page);
 
-    let result = query.all(db).await.expect("could not search");
+    let result = query.all(db).await?;
 
-    (http::Status::Ok, json!(result))
+    Ok((http::Status::Ok, json!(result)))
 }
 
 #[get("/search/mili?<keyword>&<offset>&<per_page>")]
+#[allow(unused)]
 async fn search_mili(
     conn: Client<'_>,
     keyword: &str,
@@ -180,6 +178,7 @@ async fn search_mili(
     offset: Option<usize>,
 ) -> (http::Status, JsonValue) {
     // use meilisearch_sdk::*;
+    todo!();
 
     let idx = conn.into_inner().index("benben");
 

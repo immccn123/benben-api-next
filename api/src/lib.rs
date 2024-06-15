@@ -8,6 +8,7 @@ mod db_pool;
 mod meilisearch;
 mod routes;
 mod utils;
+mod err;
 
 use std::env;
 use std::time::Duration;
@@ -101,6 +102,7 @@ async fn start() -> Result<(), rocket::Error> {
         .mount("/", get_routes!(black_history))
         .mount("/", get_routes!(tools))
         .mount("/", get_routes!(proxy))
+        .mount("/", get_routes!(process))
         .mount("/", rocket_cors::catch_all_options_routes())
         .register("/", catchers![error_handler])
         .launch()

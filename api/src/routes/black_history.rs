@@ -7,6 +7,7 @@ use sea_orm::{EntityOrSelect, QueryFilter};
 use sea_orm_rocket::Connection;
 
 use crate::db_pool::Db;
+use crate::err::AppError;
 use serde_json::json;
 
 #[get("/blackHistory/feed/<uid>?<per_page>&<page>")]
@@ -15,7 +16,7 @@ async fn get_history_feed(
     uid: u64,
     per_page: u64,
     page: u64,
-) -> JsonValue {
+) -> Result<JsonValue, AppError> {
     let db = conn.into_inner();
     let benbens = benben::Entity
         .select()
@@ -24,21 +25,22 @@ async fn get_history_feed(
         .limit(per_page)
         .order_by_desc(benben::Column::Time)
         .all(db)
-        .await
-        .expect("could not get benbens");
+        .await?;
 
     let count = benben::Entity
         .select()
         .filter(benben::Column::UserId.eq(uid))
         .count(db)
-        .await
-        .expect("could not get count of benbens by uid");
+        .await?;
 
-    json!({ "feeds": benbens, "count": count })
+    Ok(json!({ "feeds": benbens, "count": count }))
 }
 
 #[get("/blackHistory/usernames/<uid>")]
-async fn get_history_username_by_uid(conn: Connection<'_, Db>, uid: u64) -> JsonValue {
+async fn get_history_username_by_uid(
+    conn: Connection<'_, Db>,
+    uid: u64,
+) -> Result<JsonValue, AppError> {
     let db = conn.into_inner();
     let mut flag: BTreeMap<String, bool> = BTreeMap::new();
 
@@ -46,8 +48,7 @@ async fn get_history_username_by_uid(conn: Connection<'_, Db>, uid: u64) -> Json
         .select_column(benben::Column::Username)
         .filter(benben::Column::UserId.eq(uid))
         .all(db)
-        .await
-        .expect("could not get history usernames")
+        .await?
         .iter()
         .map(|x| x.username.clone())
         .collect();
@@ -58,11 +59,14 @@ async fn get_history_username_by_uid(conn: Connection<'_, Db>, uid: u64) -> Json
 
     let result: Vec<_> = flag.keys().collect();
 
-    json!(result)
+    Ok(json!(result))
 }
 
 #[get("/blackHistory/uids/<username>")]
-async fn get_history_uid_by_username(conn: Connection<'_, Db>, username: String) -> JsonValue {
+async fn get_history_uid_by_username(
+    conn: Connection<'_, Db>,
+    username: &str,
+) -> Result<JsonValue, AppError> {
     let db = conn.into_inner();
     let mut flag: BTreeMap<i32, bool> = BTreeMap::new();
 
@@ -70,8 +74,7 @@ async fn get_history_uid_by_username(conn: Connection<'_, Db>, username: String)
         .select_column(benben::Column::Username)
         .filter(benben::Column::Username.eq(username))
         .all(db)
-        .await
-        .expect("could not get history uids by username")
+        .await?
         .iter()
         .map(|x| x.user_id.clone())
         .collect();
@@ -82,7 +85,7 @@ async fn get_history_uid_by_username(conn: Connection<'_, Db>, username: String)
 
     let result: Vec<_> = flag.keys().collect();
 
-    json!(result)
+    Ok(json!(result))
 }
 
 export_routes![
