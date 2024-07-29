@@ -1,4 +1,4 @@
-use std::{error::Error, io::Cursor};
+use std::io::Cursor;
 
 use rocket::{
     error,
@@ -33,12 +33,15 @@ impl<'r> Responder<'r, 'r> for AppError {
                 .finalize());
         }
 
-        eprintln!("AppError: {}", match &self {
-            Self::DbErr(err) => err.to_string(),
-            Self::TypeErr(err) => err.to_string(),
-            Self::XmlRpcErr(err) => err.to_string(),
-            _ => panic!("never goes here"),
-        });
+        eprintln!(
+            "AppError: {}",
+            match &self {
+                Self::DbErr(err) => err.to_string(),
+                Self::TypeErr(err) => err.to_string(),
+                Self::XmlRpcErr(err) => err.to_string(),
+                _ => panic!("never goes here"),
+            }
+        );
 
         let json = json!({ "msg": self.to_string() }).to_string();
 

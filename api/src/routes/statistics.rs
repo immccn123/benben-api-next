@@ -1,7 +1,7 @@
 use entity::feed::{self as benben};
 use sea_orm::prelude::*;
 use sea_orm::query::*;
-use sea_orm::{EntityTrait, PaginatorTrait, QueryFilter, SelectColumns};
+use sea_orm::{EntityTrait, PaginatorTrait, QueryFilter};
 use serde::{Deserialize, Serialize};
 
 use serde_json::json;
@@ -15,8 +15,6 @@ use crate::err::AppError;
 struct StatisticsResponse {
     total_count: u64,
     today_count: u64,
-    total_user: u64,
-    today_user: u64,
 }
 
 #[get("/statistics")]
@@ -31,24 +29,9 @@ async fn get_statistics(conn: Connection<'_, Db>) -> Result<JsonValue, AppError>
         .count(db)
         .await?;
 
-    let total_user = benben::Entity::find()
-        .select_column(benben::Column::UserId)
-        .distinct()
-        .count(db)
-        .await?;
-
-    let today_user = benben::Entity::find()
-        .select_column(benben::Column::UserId)
-        .filter(benben::Column::Time.gte(yesterday))
-        .distinct()
-        .count(db)
-        .await?;
-
     let resp = StatisticsResponse {
         today_count,
-        today_user,
         total_count,
-        total_user,
     };
 
     Ok(json!(resp))
