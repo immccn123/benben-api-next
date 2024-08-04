@@ -5,12 +5,14 @@ extern crate lazy_static;
 #[macro_use]
 mod marco;
 mod db_pool;
+mod err;
 mod meilisearch;
 mod routes;
 mod utils;
-mod err;
 
 use std::env;
+use std::fs::File;
+use std::io::Read;
 use std::time::Duration;
 
 use db_pool::Db;
@@ -49,14 +51,26 @@ fn error_handler(status: Status, req: &Request<'_>) -> (Status, serde_json::Valu
 
 #[tokio::main]
 async fn start() -> Result<(), rocket::Error> {
-    let allowed_origins = AllowedOrigins::some_exact(&[
-        "https://aws-benben.imken.dev",
-        "https://benben.imken.dev",
-        "https://3000-immccn123-lgfeedfronten-3um3trd56q9.ws-us110.gitpod.io/",
-        "https://next-benben.imken.dev/",
-        "https://benben.sbs",
-        "https://www.benben.sbs",
-    ]);
+    let mut cors_allow = vec![
+        String::from("https://aws-benben.imken.dev"),
+        String::from("https://benben.imken.dev"),
+        String::from("https://next-benben.imken.dev/"),
+        String::from("https://benben.sbs"),
+        String::from("https://www.benben.sbs"),
+        String::from("https://aws.benben.sbs"),
+    ];
+
+    if let Ok(file) = &mut File::open(".cors_allow") {
+        let mut buf = String::new();
+        if let Ok(_) = file.read_to_string(&mut buf) {
+            cors_allow.extend(buf.lines().map(|x| {
+                println!("CORS: {x}");
+                x.to_string()
+            }));
+        }
+    }
+
+    let allowed_origins = AllowedOrigins::some_exact(cors_allow.as_ref());
 
     let cors = (rocket_cors::CorsOptions {
         allowed_origins,
