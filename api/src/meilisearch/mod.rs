@@ -33,6 +33,7 @@ impl Fairing for MeilisearchEngine {
 }
 
 impl MeilisearchEngine {
+    #[allow(unused)]
     pub fn init(host: impl Into<String>, api_key: Option<impl Into<String>>) -> Self {
         MeilisearchEngine {
             host: host.into(),
@@ -59,6 +60,7 @@ impl<'r> FromRequest<'r> for Client<'r> {
 }
 
 impl<'a> Client<'a> {
+    #[allow(unused)]
     pub fn into_inner(self) -> &'a meilisearch_sdk::Client {
         self.0
     }

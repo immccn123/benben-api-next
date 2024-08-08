@@ -1,6 +1,10 @@
+use std::collections::{BTreeMap, BTreeSet};
+
 use crate::db_pool::Db;
 use crate::err::AppError;
-use crate::meilisearch::Client;
+use crate::redis;
+// use crate::meilisearch::Client;
+use ::redis::Commands;
 use chrono::Duration;
 use chrono::TimeZone;
 use chrono::Utc;
@@ -114,6 +118,117 @@ async fn get_random(conn: Connection<'_, Db>) -> Result<(http::Status, JsonValue
     }
 }
 
+/// 权重：被提及、主动提及 = 100
+/// 收集距离最新犇犇近 60 天 / 100 条（取最多）的数据，
+/// 最新的 30 天 / 50 条权重为 100，其他的按条数差递减（向下取整），直到 25。
+/// 总权重 >= 5 的才显示
+#[get("/tools/circle/<uid>")]
+async fn get_activity_circle(
+    redis_conn: redis::Client<'_>,
+    dbconn: Connection<'_, Db>,
+    uid: i64,
+) -> Result<JsonValue, AppError> {
+    let mut redis_conn = redis_conn.into_inner().get_connection().unwrap();
+
+    let cached: Result<String, _> = redis_conn.get(format!("circle/{uid}"));
+    if let Ok(cached) = cached {
+        let mut json: Json = serde_json::from_str(&cached).expect("unexpected non-JSON string");
+        json["cacheHit"] = json!(true);
+        return Ok(json);
+    }
+
+    let db = dbconn.into_inner();
+    // @[username](/user/<uid>) or @[username](/space/show?uid=<uid>)
+
+    let now = Utc::now();
+    // 60 天前的时间
+    let past_60_days = now - Duration::days(60);
+    // 30 天前的时间
+    let past_30_days = now - Duration::days(30);
+
+    let mut pages = entity::feed::Entity::find()
+        .filter(
+            Condition::any()
+                .add(entity::feed::Column::UserId.eq(uid as i32))
+                .add(entity::feed::Column::Content.contains(uid.to_string())),
+        )
+        .order_by_desc(entity::feed::Column::Time)
+        .paginate(db, 1000);
+
+    let mut weight_map: BTreeMap<i64, u64> = BTreeMap::new();
+    let mut benben_flag: BTreeSet<i64> = BTreeSet::new();
+
+    while let Some(data) = pages.fetch_and_next().await? {
+        for benben in data {
+            let sender_id = benben.user_id as i64;
+
+            if benben_flag.len() < 100 || benben.time.ge(&past_60_days.naive_local()) {
+                benben_flag.insert(benben.id.into());
+
+                let captures = MENTION_REGEXP.captures_iter(&benben.content);
+
+                for caps in captures {
+                    let (_, [_, mentioned_uid]) = caps.extract();
+
+                    let mentioned_uid = if let Ok(uid) = mentioned_uid.parse::<i64>() {
+                        uid
+                    } else {
+                        continue;
+                    };
+
+                    let time_delta =
+                        (benben.time - past_30_days.naive_local()).num_seconds() as f64;
+                    let total_time = Duration::days(30).num_seconds() as f64;
+                    let weight = f64::min(
+                        f64::min(3., 3. + (time_delta / total_time) * (100. - 3.)),
+                        100.0,
+                    );
+
+                    if mentioned_uid == uid && sender_id != uid {
+                        // 被 at 且 非本人发送
+                        *weight_map.entry(sender_id).or_insert(0) += (weight * 0.6) as u64;
+                    } else if mentioned_uid != uid && sender_id == uid {
+                        // 本人发送并且不是 at 自己
+                        *weight_map.entry(mentioned_uid).or_insert(0) += weight as u64;
+                    }
+                }
+            } else {
+                break;
+            }
+        }
+    }
+
+    // 整理权重
+    let mut result: Vec<_> = weight_map.into_iter().collect::<Vec<_>>();
+    result.sort_unstable_by(|(_, v1), (_, v2)| v1.cmp(v2).reverse());
+
+    let result: Vec<_> = result
+        .into_iter()
+        .map(|(k, v)| {
+            json!({
+                "uid": k,
+                "weight": v,
+            })
+        })
+        .collect();
+
+    let result = json!({
+        "result": result,
+        "benbenCnt": benben_flag.len(),
+        "cacheHit": false,
+    });
+
+    redis_conn
+        .set_ex::<String, String, String>(
+            format!("circle/{uid}"),
+            result.to_string(),
+            Duration::hours(8).num_seconds() as u64,
+        )
+        .unwrap();
+
+    Ok(result)
+}
+
 #[get(
     "/search/db?<keyword>&<senders>&<date_after>&<date_before>&<id_before>&<id_after>&<per_page>"
 )]
@@ -172,7 +287,7 @@ async fn search_db(
 #[get("/search/mili?<keyword>&<offset>&<per_page>")]
 #[allow(unused)]
 async fn search_mili(
-    conn: Client<'_>,
+    // conn: Client<'_>,
     keyword: &str,
     per_page: Option<usize>,
     offset: Option<usize>,
@@ -180,7 +295,7 @@ async fn search_mili(
     // use meilisearch_sdk::*;
     todo!();
 
-    let idx = conn.into_inner().index("benben");
+    // let idx = conn.into_inner().index("benben");
 
     // let result: Vec<_> = idx
     //     .search()
@@ -203,25 +318,25 @@ async fn search_mili(
     //     })
     //     .collect();
 
-    let result: Vec<_> = idx
-        .search()
-        .with_query(keyword)
-        .with_hits_per_page(per_page.unwrap_or(50))
-        .with_offset(offset.unwrap_or(0))
-        .execute::<entity::search::Benben>()
-        .await
-        .expect("could not search")
-        .hits
-        .iter()
-        .map(|x| {
-            json!({
-                "match": x.result.clone(), //.to_model(),
-                "ranking": x.ranking_score
-            })
-        })
-        .collect();
+    // let result: Vec<_> = idx
+    //     .search()
+    //     .with_query(keyword)
+    //     .with_hits_per_page(per_page.unwrap_or(50))
+    //     .with_offset(offset.unwrap_or(0))
+    //     .execute::<entity::search::Benben>()
+    //     .await
+    //     .expect("could not search")
+    //     .hits
+    //     .iter()
+    //     .map(|x| {
+    //         json!({
+    //             "match": x.result.clone(), //.to_model(),
+    //             "ranking": x.ranking_score
+    //         })
+    //     })
+    //     .collect();
 
-    (http::Status::Ok, json!(result))
+    // (http::Status::Ok, json!(result))
 }
 
 export_routes![
@@ -231,4 +346,5 @@ export_routes![
     search_db,
     search_mili,
     get_random,
+    get_activity_circle,
 ];

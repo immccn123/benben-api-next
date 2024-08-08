@@ -7,16 +7,20 @@ mod marco;
 mod db_pool;
 mod err;
 mod meilisearch;
+mod redis;
 mod routes;
 mod utils;
 
+#[allow(unused)]
 use std::env;
 use std::fs::File;
 use std::io::Read;
 use std::time::Duration;
 
 use db_pool::Db;
+#[allow(unused)]
 use meilisearch::MeilisearchEngine;
+use redis::RedisEngine;
 use regex::RegexSet;
 use rocket::fairing::AdHoc;
 use rocket::http::{Header, Status};
@@ -40,11 +44,7 @@ fn error_handler(status: Status, req: &Request<'_>) -> (Status, serde_json::Valu
         serde_json::json!({
             "reason": status.reason(),
             "status": status,
-            "request": {
-                "origin": req.uri(),
-                "headers": headers,
-                "method": req.method(),
-            }
+            "request": { "origin": req.uri(), "headers": headers, "method": req.method() }
         }),
     )
 }
@@ -81,9 +81,12 @@ async fn start() -> Result<(), rocket::Error> {
 
     rocket::build()
         .attach(Db::init())
-        .attach(MeilisearchEngine::init(
-            env::var("MEILISEARCH_URL").expect("MEILISEARCH_URL is not set"),
-            env::var("MEILISEARCH_KEY").ok(),
+        // .attach(MeilisearchEngine::init(
+        //     env::var("MEILISEARCH_URL").expect("MEILISEARCH_URL is not set"),
+        //     env::var("MEILISEARCH_KEY").ok(),
+        // ))
+        .attach(RedisEngine::init(
+            env::var("REDIS_URL").expect("REDIS url not set"),
         ))
         .attach(CacheTheResponse {
             cache_time: Some(Duration::from_secs(60 * 60 * 24)),

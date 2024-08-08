@@ -21,6 +21,8 @@ pub enum AppError {
     XmlRpcErr(#[from] dxr_client::ClientError),
     #[error("Param Validate Failed")]
     ParamValidateFailed(&'static str),
+    #[error("Network Error")]
+    NetworkError(#[from] reqwest::Error),
 }
 
 impl<'r> Responder<'r, 'r> for AppError {
@@ -39,6 +41,7 @@ impl<'r> Responder<'r, 'r> for AppError {
                 Self::DbErr(err) => err.to_string(),
                 Self::TypeErr(err) => err.to_string(),
                 Self::XmlRpcErr(err) => err.to_string(),
+                Self::NetworkError(err) => err.to_string(),
                 _ => panic!("never goes here"),
             }
         );
