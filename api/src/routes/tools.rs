@@ -180,7 +180,7 @@ async fn get_activity_circle(
                         (benben.time - past_30_days.naive_local()).num_seconds() as f64;
                     let total_time = Duration::days(30).num_seconds() as f64;
                     let weight = f64::min(
-                        f64::min(3., 3. + (time_delta / total_time) * (100. - 3.)),
+                        f64::max(3., 3. + (time_delta / total_time) * (100. - 3.)),
                         100.0,
                     );
 
