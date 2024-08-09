@@ -150,10 +150,10 @@ async fn get_activity_circle(
         .filter(
             Condition::any()
                 .add(entity::feed::Column::UserId.eq(uid as i32))
-                .add(entity::feed::Column::Content.contains(uid.to_string())),
+                .add(entity::feed::Column::Content.contains(format!("](/user/{uid})"))),
         )
         .order_by_desc(entity::feed::Column::Time)
-        .paginate(db, 1000);
+        .paginate(db, 1500);
 
     let mut weight_map: BTreeMap<i64, u64> = BTreeMap::new();
     let mut benben_flag: BTreeSet<i64> = BTreeSet::new();
