@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use entity::feed::{self as benben};
+use entity::{feed as benben, feed_takedown as benben_takedown};
 use sea_orm::prelude::*;
 use sea_orm::query::*;
 use sea_orm::{EntityOrSelect, QueryFilter};
@@ -20,6 +20,8 @@ async fn get_history_feed(
     let db = conn.into_inner();
     let benbens = benben::Entity
         .select()
+        .left_join(benben_takedown::Entity)
+        .filter(benben_takedown::Column::FeedId.is_null())
         .filter(benben::Column::UserId.eq(uid))
         .offset((page - 1) * per_page)
         .limit(per_page)

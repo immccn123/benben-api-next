@@ -65,3 +65,24 @@ CREATE INDEX "idx_user_id_time" ON "public"."feed" USING btree (
 -- Primary Key structure for table feed
 -- ----------------------------
 ALTER TABLE "public"."feed" ADD CONSTRAINT "feed_pkey" PRIMARY KEY ("id");
+
+-- ----------------------------
+-- Table structure for takedown_batches
+-- ----------------------------
+CREATE TABLE "public"."takedown_batches" (
+  "batch_id" SERIAL PRIMARY KEY,                          -- 批量操作的唯一标识
+  "reason" varchar(1024) COLLATE "pg_catalog"."default" NOT NULL,  -- 下架原因
+  "takedown_time" timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP, -- 下架时间
+  "takedown_user_id" int4 NOT NULL                        -- 执行下架操作的用户 ID
+);
+
+-- ----------------------------
+-- Table structure for feed_takedown
+-- ----------------------------
+CREATE TABLE "public"."feed_takedown" (
+  "id" SERIAL PRIMARY KEY,                               -- 唯一标识
+  "feed_id" int4 NOT NULL UNIQUE,                               -- 对应被下架的 feed 的 ID
+  "batch_id" int4 NOT NULL,                              -- 批量操作的 ID
+  CONSTRAINT "fk_feed_id" FOREIGN KEY ("feed_id") REFERENCES "public"."feed" ("id") ON DELETE CASCADE,
+  CONSTRAINT "fk_batch_id" FOREIGN KEY ("batch_id") REFERENCES "public"."takedown_batches" ("batch_id") ON DELETE CASCADE
+);

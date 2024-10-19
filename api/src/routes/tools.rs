@@ -3,12 +3,13 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::db_pool::Db;
 use crate::err::AppError;
 use crate::redis;
+use entity::takedown_batches;
 // use crate::meilisearch::Client;
 use ::redis::Commands;
 use chrono::Duration;
 use chrono::TimeZone;
 use chrono::Utc;
-use entity::feed::{self as benben};
+use entity::{feed as benben, feed_takedown as benben_takedown};
 use lazy_static::lazy_static;
 use regex::Regex;
 use rocket::http;
@@ -30,16 +31,19 @@ async fn who_at_me(conn: Connection<'_, Db>, username: &str) -> Result<JsonValue
     let db = conn.into_inner();
     let time_after = Utc::now() - Duration::days(1);
 
+    let username: String = username.to_lowercase();
+
     let benbens = benben::Entity::find()
         .select()
+        .left_join(benben_takedown::Entity)
         .filter(benben::Column::Time.gte(time_after))
-        .filter(benben::Column::Content.contains(username))
+        .filter(benben::Column::Content.contains(&username))
+        .filter(benben_takedown::Column::FeedId.is_null())
         .order_by_desc(benben::Column::Time)
         .all(db)
         .await?;
 
     let mut result = vec![];
-    let username = username.to_lowercase();
 
     for benben in &benbens {
         let parts = MENTION_REGEXP.captures_iter(&benben.content);
@@ -67,9 +71,25 @@ async fn get_feed(
 ) -> Result<(http::Status, JsonValue), AppError> {
     let db = conn.into_inner();
 
+    let takedown = benben_takedown::Entity::find()
+        .filter(benben_takedown::Column::FeedId.eq(feed_id))
+        .find_also_related(takedown_batches::Entity)
+        .one(db)
+        .await?;
+
     let benben = benben::Entity::find_by_id(feed_id).one(db).await?;
 
-    if let Some(benben) = benben {
+    if let Some(takedown) = takedown {
+        let info = takedown.1.expect("takedown batch not found");
+
+        Ok((
+            http::Status::Ok,
+            json!({
+                "takedown": true,
+                "takedown_info": info,
+            }),
+        ))
+    } else if let Some(benben) = benben {
         Ok((http::Status::Ok, json!(benben)))
     } else {
         Ok((
@@ -104,7 +124,20 @@ async fn get_random(conn: Connection<'_, Db>) -> Result<(http::Status, JsonValue
     let now = SystemTime::now();
     let since_the_epoch = now.duration_since(UNIX_EPOCH).expect("Time went backwards");
     let seed = since_the_epoch.as_secs() as u64;
-    let id = StdRng::seed_from_u64(seed).gen_range(0..=total);
+
+    let mut rng = StdRng::seed_from_u64(seed);
+
+    let id = loop {
+        let id = rng.gen_range(0..=total);
+        if let None = benben_takedown::Entity::find()
+            .filter(benben_takedown::Column::FeedId.eq(id))
+            .find_also_related(takedown_batches::Entity)
+            .one(db)
+            .await?
+        {
+            break id;
+        }
+    };
 
     let benben = benben::Entity::find_by_id(id).one(db).await?;
 
@@ -244,8 +277,11 @@ async fn search_db(
 ) -> Result<(http::Status, JsonValue), AppError> {
     let db = conn.into_inner();
     let mut query = benben::Entity::find()
+        .left_join(benben_takedown::Entity)
+        .filter(benben_takedown::Column::FeedId.is_null())
         .select()
         .order_by_desc(benben::Column::Id);
+
     let per_page = match per_page {
         Some(x) => x,
         None => 50,
