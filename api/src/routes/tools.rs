@@ -3,6 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::db_pool::Db;
 use crate::err::AppError;
 use crate::redis;
+use chrono::Datelike;
 use entity::takedown_batches;
 // use crate::meilisearch::Client;
 use ::redis::Commands;
@@ -15,7 +16,8 @@ use regex::Regex;
 use rocket::http;
 use sea_orm::prelude::*;
 use sea_orm::query::*;
-use sea_orm::sea_query::Func;
+use sea_orm::sea_query::SimpleExpr;
+use sea_orm::sea_query::{extension::postgres::PgExpr, Func};
 use sea_orm::FromQueryResult;
 use sea_orm::{EntityTrait, QueryFilter};
 use sea_orm_rocket::Connection;
@@ -37,7 +39,9 @@ async fn who_at_me(conn: Connection<'_, Db>, username: &str) -> Result<JsonValue
         .select()
         .left_join(benben_takedown::Entity)
         .filter(benben::Column::Time.gte(time_after))
-        .filter(benben::Column::Content.contains(&username))
+        .filter(
+            SimpleExpr::from(Func::lower(Expr::col(benben::Column::Content))).like(format!("%{}%", &username)),
+        )
         .filter(benben_takedown::Column::FeedId.is_null())
         .order_by_desc(benben::Column::Time)
         .all(db)
@@ -59,9 +63,87 @@ async fn who_at_me(conn: Connection<'_, Db>, username: &str) -> Result<JsonValue
     Ok(json!(result))
 }
 
-#[get("/tools/heatmap/<_uid>")]
-async fn get_heatmap(_conn: Connection<'_, Db>, _uid: i32) {
-    todo!("not impl yet");
+#[get("/tools/heatmap/<uid>")]
+async fn get_heatmap(conn: Connection<'_, Db>, uid: i32) -> Result<Json, AppError> {
+    use chrono::NaiveDate;
+
+    let db: &DatabaseConnection = conn.into_inner();
+    let today = Utc::now().naive_utc().date();
+    let duration = 365 - (8 - today.weekday().num_days_from_sunday()) % 7;
+    // let duration = 365;
+    // let mut daily_counts = Vec::new();
+    let past_date = (today - Duration::days(duration.into()))
+        .and_hms_opt(0, 0, 0)
+        .unwrap();
+
+    #[derive(FromQueryResult, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+    struct QueryResult {
+        date: NaiveDate,
+        count: i64,
+    }
+
+    impl std::cmp::PartialOrd for QueryResult {
+        fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+            Some(self.date.cmp(&other.date))
+        }
+    }
+    impl std::cmp::Ord for QueryResult {
+        fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+            self.date.cmp(&other.date)
+        }
+    }
+
+    let mut result = benben::Entity::find()
+        .filter(benben::Column::UserId.eq(uid))
+        .filter(benben::Column::Time.gte(past_date))
+        .filter(benben::Column::Time.lt(today.succ_opt().unwrap().and_hms_opt(0, 0, 0).unwrap()))
+        .select_only()
+        .column_as(Expr::cust("DATE(time)"), "date") // 仅提取日期部分
+        .column_as(Expr::cust("COUNT(*)"), "count") // 计算每天的数量
+        .group_by(Expr::cust("date")) // 按日期分组
+        .order_by_asc(Expr::cust("date")) // 按日期升序排列
+        .into_model::<QueryResult>()
+        .all(db)
+        .await?;
+
+    result.sort();
+
+    let mut date_counts = Vec::new();
+    let mut current_date = past_date.date();
+    let mut count_iter = result.iter();
+
+    if let Some(mut current_count) = count_iter.next() {
+        while current_date <= today {
+            if current_count.date < current_date {
+                // 日期不匹配，添加 count: 0
+                date_counts.push(QueryResult {
+                    date: current_date,
+                    count: 0,
+                });
+                current_date = current_date.succ_opt().unwrap(); // 增加一天
+            } else if current_count.date == current_date {
+                // 日期匹配，添加当前计数
+                date_counts.push(QueryResult {
+                    date: current_count.date,
+                    count: current_count.count,
+                });
+                current_date = current_date.succ_opt().unwrap(); // 增加一天
+                current_count = if let Some(res) = count_iter.next() {
+                    res
+                } else {
+                    break;
+                };
+            } else {
+                date_counts.push(QueryResult {
+                    date: current_date,
+                    count: 0,
+                });
+                current_date = current_date.succ_opt().unwrap(); // 增加一天
+            }
+        }
+    }
+
+    Ok(json!(date_counts))
 }
 
 #[get("/tools/getFeed/<feed_id>")]
@@ -161,13 +243,15 @@ async fn get_activity_circle(
     dbconn: Connection<'_, Db>,
     uid: i64,
 ) -> Result<JsonValue, AppError> {
-    let mut redis_conn = redis_conn.into_inner().get_connection().unwrap();
+    let mut redis_conn = redis_conn.into_inner().get_connection();
 
-    let cached: Result<String, _> = redis_conn.get(format!("circle/{uid}"));
-    if let Ok(cached) = cached {
-        let mut json: Json = serde_json::from_str(&cached).expect("unexpected non-JSON string");
-        json["cacheHit"] = json!(true);
-        return Ok(json);
+    if let Ok(redis_conn) = &mut redis_conn {
+        let cached: Result<String, _> = redis_conn.get(format!("circle/{uid}"));
+        if let Ok(cached) = cached {
+            let mut json: Json = serde_json::from_str(&cached).expect("unexpected non-JSON string");
+            json["cacheHit"] = json!(true);
+            return Ok(json);
+        }
     }
 
     let db = dbconn.into_inner();
@@ -251,13 +335,15 @@ async fn get_activity_circle(
         "cacheHit": false,
     });
 
-    redis_conn
-        .set_ex::<String, String, String>(
-            format!("circle/{uid}"),
-            result.to_string(),
-            Duration::hours(8).num_seconds() as u64,
-        )
-        .unwrap();
+    if let Ok(redis_conn) = &mut redis_conn {
+        redis_conn
+            .set_ex::<String, String, String>(
+                format!("circle/{uid}"),
+                result.to_string(),
+                Duration::hours(8).num_seconds() as u64,
+            )
+            .unwrap();
+    }
 
     Ok(result)
 }

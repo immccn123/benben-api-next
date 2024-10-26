@@ -10,6 +10,7 @@ mod meilisearch;
 mod redis;
 mod routes;
 mod utils;
+mod tools;
 
 #[allow(unused)]
 use std::env;
