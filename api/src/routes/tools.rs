@@ -16,8 +16,8 @@ use regex::Regex;
 use rocket::http;
 use sea_orm::prelude::*;
 use sea_orm::query::*;
+use sea_orm::sea_query::Func;
 use sea_orm::sea_query::SimpleExpr;
-use sea_orm::sea_query::{extension::postgres::PgExpr, Func};
 use sea_orm::FromQueryResult;
 use sea_orm::{EntityTrait, QueryFilter};
 use sea_orm_rocket::Connection;
@@ -40,7 +40,8 @@ async fn who_at_me(conn: Connection<'_, Db>, username: &str) -> Result<JsonValue
         .left_join(benben_takedown::Entity)
         .filter(benben::Column::Time.gte(time_after))
         .filter(
-            SimpleExpr::from(Func::lower(Expr::col(benben::Column::Content))).like(format!("%{}%", &username)),
+            SimpleExpr::from(Func::lower(Expr::col(benben::Column::Content)))
+                .like(format!("%{}%", &username)),
         )
         .filter(benben_takedown::Column::FeedId.is_null())
         .order_by_desc(benben::Column::Time)

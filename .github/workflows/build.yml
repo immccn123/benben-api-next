@@ -1,0 +1,31 @@
+name: Build and Upload Executable
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Rust
+      uses: actions/setup-rust@v1
+      with:
+        rust-version: stable
+
+    - name: Build
+      run: cargo build --release
+
+    - name: Upload Executable
+      uses: actions/upload-artifact@v3
+      with:
+        name: executable
+        path: target/release/benben-api-next
