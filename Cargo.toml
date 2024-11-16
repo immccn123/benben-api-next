@@ -12,7 +12,6 @@ members = [".", "api", "entity", "mili-writer", "takedown"]
 [dependencies]
 dotenv = "0.15.0"
 api = { path = "api" }
-libc = "0.2.155"
 
 # [profile.release]
 # lto = true

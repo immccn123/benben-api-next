@@ -21,7 +21,7 @@ fn read_progress() -> err::Result<i32> {
         Ok(p) => p,
         Err(_) => {
             write_progress(0)?;
-            "0".to_string()
+            "1".to_string()
         }
     }
     .trim()
@@ -42,28 +42,45 @@ async fn main() -> Result<(), Error> {
     db.ping().await?;
 
     let meili = meilisearch_sdk::Client::new(
-        std::env::var("MEILI_URL").expect("MEILI_URL is not set"),
-        std::env::var("MEILI_KEY").ok(),
+        std::env::var("MEILISEARCH_URL").expect("MEILISEARCH_URL is not set"),
+        std::env::var("MEILISEARCH_KEY").ok(),
     );
 
+    meili.create_index("benben", Some("id")).await.ok();
     let idx = meili.index("benben");
+    idx.set_filterable_attributes(&[
+        "id",
+        "content",
+        "username",
+        "user_id",
+        "time",
+        "grab_time",
+        ])
+        .await?;
+    println!("filterable indexes: {:?}", idx.get_filterable_attributes().await?);
 
     let mut progress = read_progress()?;
 
     loop {
-        println!("Saving benben [id = {}]", progress);
-        // check if exists
         let filter = format!("id = {}", progress);
 
         let post_exists = idx
             .search()
             .with_filter(filter.as_str())
             .execute::<Benben>()
-            .await?;
+            .await;
 
-        if post_exists.hits.len() != 0 {
-            progress += 1;
-            continue;
+        if let Ok(post_exists) = post_exists {
+            // println!("{:?}", post_exists.hits);
+            if post_exists.hits.len() != 0 {
+                println!("Benben [id = {}] already saved", progress);
+                progress += 1;
+
+                if progress % 20 == 0 {
+                    write_progress(progress)?;
+                }
+                continue;
+            }
         }
 
         if let Some(benben) = entity::feed::Entity::find_by_id(progress).one(db).await? {
@@ -79,7 +96,7 @@ async fn main() -> Result<(), Error> {
                     .timestamp())
             }
 
-            idx.add_documents(
+            idx.add_or_replace(
                 &[Benben {
                     id: benben.id,
                     user_color: benben.user_color,
@@ -94,13 +111,16 @@ async fn main() -> Result<(), Error> {
             )
             .await?;
 
-            println!("Save of benben [id = {}] successfully", progress);
+            println!("Saved [id = {}]", progress);
 
             progress += 1;
-            write_progress(progress)?;
-        }
 
-        println!("Benben [id = {}] not found, wait for 1 second", progress);
-        tokio::time::interval(Duration::from_secs(1)).tick().await;
+            if progress % 20 == 0 {
+                write_progress(progress)?;
+            }
+        } else {
+            println!("Benben [id = {}] not found, wait for 1 second", progress);
+            tokio::time::interval(Duration::from_secs(5)).tick().await;
+        }
     }
 }

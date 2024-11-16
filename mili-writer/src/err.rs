@@ -19,7 +19,7 @@ pub enum Error {
     #[error("parse int error")]
     ParseIntError(#[from] std::num::ParseIntError),
     #[error("meilisearch error")]
-    MeilisearchErrors(#[from] meilisearch_sdk::errors::Error),
+    MeilisearchErrors(#[from] meilisearch_sdk::Error),
     #[error("unknown error")]
     UndefiendError(UndefiendError),
 }

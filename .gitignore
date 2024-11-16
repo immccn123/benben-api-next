@@ -1,3 +1,5 @@
 /target
 .env
 .cors_allow
+.tmp
+mili-writer/progress.txt
