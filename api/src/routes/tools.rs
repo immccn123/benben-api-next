@@ -5,7 +5,7 @@ use crate::err::AppError;
 use crate::redis;
 use chrono::Datelike;
 use entity::takedown_batches;
-// use crate::meilisearch::Client;
+use crate::meilisearch::{Client as MeilisearchClient};
 use ::redis::Commands;
 use chrono::Duration;
 use chrono::TimeZone;
@@ -410,56 +410,47 @@ async fn search_db(
 #[get("/search/mili?<keyword>&<offset>&<per_page>")]
 #[allow(unused)]
 async fn search_mili(
-    // conn: Client<'_>,
+    conn: MeilisearchClient<'_>,
     keyword: &str,
     per_page: Option<usize>,
     offset: Option<usize>,
 ) -> (http::Status, JsonValue) {
-    // use meilisearch_sdk::*;
-    todo!();
+    use meilisearch_sdk::*;
+    // todo!();
 
-    // let idx = conn.into_inner().index("benben");
+    let idx = conn.into_inner().index("benben");
 
-    // let result: Vec<_> = idx
-    //     .search()
-    //     .with_query(keyword)
-    //     .with_attributes_to_highlight(Selectors::Some(&["content"]))
-    //     .with_attributes_to_search_on(&["content"])
-    //     .with_hits_per_page(per_page.unwrap_or(50))
-    //     .with_offset(offset.unwrap_or(0))
-    //     .execute::<String>()
-    //     // .execute::<entity::search::Benben>()
-    //     .await
-    //     .expect("could not search")
-    //     .hits
-    //     .iter()
-    //     .map(|x| {
-    //         json!({
-    //             "match": x.result.clone(), //.to_model(),
-    //             "ranking": x.ranking_score
-    //         })
-    //     })
-    //     .collect();
+    let search_results = idx
+        .search()
+        .with_query(keyword)
+        .with_attributes_to_highlight(Selectors::Some(&["content"]))
+        .with_attributes_to_search_on(&["content"])
+        .with_hits_per_page(per_page.unwrap_or(50))
+        .with_offset(offset.unwrap_or(0))
+        .with_show_ranking_score(true)
+        // .execute::<String>()
+        .execute::<entity::search::Benben>()
+        .await
+        .expect("could not search");
+    let hits: Vec<_> = search_results.hits
+        .iter()
+        .map(|x| {
+            json!({
+                "formatted": x.formatted_result.clone(),
+                "result": x.result.clone(),
+                "ranking": x.ranking_score,
+                "detail": x.ranking_score_details,
+            })
+        })
+        .collect();
 
-    // let result: Vec<_> = idx
-    //     .search()
-    //     .with_query(keyword)
-    //     .with_hits_per_page(per_page.unwrap_or(50))
-    //     .with_offset(offset.unwrap_or(0))
-    //     .execute::<entity::search::Benben>()
-    //     .await
-    //     .expect("could not search")
-    //     .hits
-    //     .iter()
-    //     .map(|x| {
-    //         json!({
-    //             "match": x.result.clone(), //.to_model(),
-    //             "ranking": x.ranking_score
-    //         })
-    //     })
-    //     .collect();
-
-    // (http::Status::Ok, json!(result))
+    (http::Status::Ok, json!({
+        "hits": hits,
+        "estimated_total_hits": search_results.estimated_total_hits,
+        "processing_time_ms": search_results.processing_time_ms,
+        "total_hits": search_results.total_hits,
+        "total_pages": search_results.total_pages,
+    }))
 }
 
 export_routes![

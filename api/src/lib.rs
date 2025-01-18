@@ -79,10 +79,10 @@ async fn start() -> Result<(), rocket::Error> {
 
     rocket::build()
         .attach(Db::init())
-        // .attach(MeilisearchEngine::init(
-        //     env::var("MEILISEARCH_URL").expect("MEILISEARCH_URL is not set"),
-        //     env::var("MEILISEARCH_KEY").ok(),
-        // ))
+        .attach(MeilisearchEngine::init(
+            env::var("MEILISEARCH_URL").expect("MEILISEARCH_URL is not set"),
+            env::var("MEILISEARCH_KEY").ok(),
+        ))
         .attach(RedisEngine::init(
             env::var("REDIS_URL").expect("REDIS url not set"),
         ))
