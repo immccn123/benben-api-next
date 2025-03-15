@@ -13,9 +13,9 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 #[allow(unused)]
 pub enum AppError {
-    #[error("Database error")]
+    #[error("DatabaseError")]
     DbErr(#[from] sea_orm::DbErr),
-    #[error("Type error")]
+    #[error("TypeError")]
     TypeErr(&'static str),
     #[error("XMLRPC error")]
     XmlRpcErr(#[from] dxr_client::ClientError),

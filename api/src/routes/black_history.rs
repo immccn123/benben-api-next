@@ -5,10 +5,10 @@ use sea_orm::prelude::*;
 use sea_orm::query::*;
 use sea_orm::{EntityOrSelect, QueryFilter};
 use sea_orm_rocket::Connection;
+use serde_json::json;
 
 use crate::db_pool::Db;
 use crate::err::AppError;
-use serde_json::json;
 
 #[get("/blackHistory/feed/<uid>?<per_page>&<page>")]
 async fn get_history_feed(

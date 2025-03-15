@@ -1,15 +1,13 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::db_pool::Db;
-use crate::err::AppError;
-use crate::redis;
+use crate::err::{self, AppError};
+use crate::redis::{self, Commands};
 use chrono::Datelike;
-use entity::takedown_batches;
-use crate::meilisearch::{Client as MeilisearchClient};
-use ::redis::Commands;
 use chrono::Duration;
 use chrono::TimeZone;
 use chrono::Utc;
+use entity::takedown_batches;
 use entity::{feed as benben, feed_takedown as benben_takedown};
 use lazy_static::lazy_static;
 use regex::Regex;
@@ -407,50 +405,41 @@ async fn search_db(
     Ok((http::Status::Ok, json!(result)))
 }
 
-#[get("/search/mili?<keyword>&<offset>&<per_page>")]
-#[allow(unused)]
-async fn search_mili(
-    conn: MeilisearchClient<'_>,
-    keyword: &str,
-    per_page: Option<usize>,
-    offset: Option<usize>,
-) -> (http::Status, JsonValue) {
-    use meilisearch_sdk::*;
-    // todo!();
+#[get("/list?<uids>")]
+async fn list(
+    conn: Connection<'_, Db>,
+    uids: Option<&str>,
+) -> Result<(http::Status, JsonValue), AppError> {
+    let db = conn.into_inner();
 
-    let idx = conn.into_inner().index("benben");
+    let mut query = benben::Entity::find()
+        .left_join(benben_takedown::Entity)
+        .filter(benben_takedown::Column::FeedId.is_null())
+        .select()
+        .order_by(benben::Column::Time, Order::Desc);
 
-    let search_results = idx
-        .search()
-        .with_query(keyword)
-        .with_attributes_to_highlight(Selectors::Some(&["content"]))
-        .with_attributes_to_search_on(&["content"])
-        .with_hits_per_page(per_page.unwrap_or(50))
-        .with_offset(offset.unwrap_or(0))
-        .with_show_ranking_score(true)
-        // .execute::<String>()
-        .execute::<entity::search::Benben>()
-        .await
-        .expect("could not search");
-    let hits: Vec<_> = search_results.hits
-        .iter()
-        .map(|x| {
-            json!({
-                "formatted": x.formatted_result.clone(),
-                "result": x.result.clone(),
-                "ranking": x.ranking_score,
-                "detail": x.ranking_score_details,
-            })
-        })
-        .collect();
+    match uids {
+        Some(uid_str) => {
+            let iter = uid_str.split(",").filter(|x| x.len() > 0);
+            let mut uids = Vec::new();
+            for item in iter {
+                let uid = item.trim().parse::<i32>().map_err(|_| {
+                    err::AppError::ParamValidateFailed("param contains non-integer.")
+                })?;
+                uids.push(uid);
+            }
 
-    (http::Status::Ok, json!({
-        "hits": hits,
-        "estimated_total_hits": search_results.estimated_total_hits,
-        "processing_time_ms": search_results.processing_time_ms,
-        "total_hits": search_results.total_hits,
-        "total_pages": search_results.total_pages,
-    }))
+            query = query.filter(benben::Column::UserId.is_in(uids));
+            query = query.limit(100);
+        }
+        None => {
+            query = query.limit(100);
+        }
+    }
+
+    let result = query.all(db).await?;
+
+    Ok((http::Status::Ok, json!(result)))
 }
 
 export_routes![
@@ -458,7 +447,7 @@ export_routes![
     get_heatmap,
     get_feed,
     search_db,
-    search_mili,
     get_random,
     get_activity_circle,
+    list,
 ];

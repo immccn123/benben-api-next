@@ -6,7 +6,6 @@ extern crate lazy_static;
 mod marco;
 mod db_pool;
 mod err;
-mod meilisearch;
 mod redis;
 mod routes;
 mod utils;
@@ -18,8 +17,6 @@ use std::fs::File;
 use std::io::Read;
 
 use db_pool::Db;
-#[allow(unused)]
-use meilisearch::MeilisearchEngine;
 use redis::RedisEngine;
 use rocket::fairing::AdHoc;
 use rocket::http::{Header, Status};
@@ -79,10 +76,6 @@ async fn start() -> Result<(), rocket::Error> {
 
     rocket::build()
         .attach(Db::init())
-        .attach(MeilisearchEngine::init(
-            env::var("MEILISEARCH_URL").expect("MEILISEARCH_URL is not set"),
-            env::var("MEILISEARCH_KEY").ok(),
-        ))
         .attach(RedisEngine::init(
             env::var("REDIS_URL").expect("REDIS url not set"),
         ))

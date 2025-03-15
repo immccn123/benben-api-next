@@ -2,11 +2,9 @@ use entity::feed::{self as benben};
 use sea_orm::prelude::*;
 use sea_orm::query::*;
 use sea_orm::{EntityTrait, PaginatorTrait, QueryFilter};
-use serde::{Deserialize, Serialize};
-
-use serde_json::json;
-
 use sea_orm_rocket::Connection;
+use serde::{Deserialize, Serialize};
+use serde_json::json;
 
 use crate::db_pool::Db;
 use crate::err::AppError;
@@ -37,14 +35,4 @@ async fn get_statistics(conn: Connection<'_, Db>) -> Result<JsonValue, AppError>
     Ok(json!(resp))
 }
 
-#[get("/statistics/24h")]
-async fn get_statistics_24h(_conn: Connection<'_, Db>) -> JsonValue {
-    json!([])
-}
-
-#[get("/statistics/60d")]
-async fn get_statistics_60d(_conn: Connection<'_, Db>) -> JsonValue {
-    json!([])
-}
-
-export_routes![get_statistics, get_statistics_24h, get_statistics_60d];
+export_routes![get_statistics];

@@ -1,3 +1,5 @@
+pub use redis::Commands;
+
 use rocket::{
     fairing::{Fairing, Info, Kind},
     http::Status,
@@ -20,7 +22,8 @@ impl Fairing for RedisEngine {
     }
 
     async fn on_ignite(&self, rocket: rocket::Rocket<rocket::Build>) -> rocket::fairing::Result {
-        let conn = redis::Client::open(self.url.as_str()).expect("could not connect to redis server");
+        let conn =
+            redis::Client::open(self.url.as_str()).expect("could not connect to redis server");
 
         Ok(rocket.manage(conn))
     }
