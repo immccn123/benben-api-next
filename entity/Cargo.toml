@@ -10,7 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 serde = "1"
-chrono = "0.4.37"
+chrono = "0.4"
 
 [dependencies.sea-orm]
 version = "1"

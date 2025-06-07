@@ -1,11 +1,10 @@
-extern crate dotenv;
 use chrono::NaiveDateTime;
 use chrono_tz::Asia::Shanghai;
 use sea_orm::ColumnTrait;
 use sea_orm::QueryFilter;
 use std::{io, time::Duration};
 
-use dotenv::dotenv;
+use dotenvy::dotenv;
 
 mod err;
 use entity::search::Benben;
