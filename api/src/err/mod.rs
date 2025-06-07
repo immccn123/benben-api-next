@@ -17,8 +17,6 @@ pub enum AppError {
     DbErr(#[from] sea_orm::DbErr),
     #[error("TypeError")]
     TypeErr(&'static str),
-    #[error("XMLRPC error")]
-    XmlRpcErr(#[from] dxr_client::ClientError),
     #[error("Param Validate Failed")]
     ParamValidateFailed(&'static str),
     #[error("Network Error")]
@@ -40,7 +38,6 @@ impl<'r> Responder<'r, 'r> for AppError {
             match &self {
                 Self::DbErr(err) => err.to_string(),
                 Self::TypeErr(err) => err.to_string(),
-                Self::XmlRpcErr(err) => err.to_string(),
                 Self::NetworkError(err) => err.to_string(),
                 _ => panic!("never goes here"),
             }

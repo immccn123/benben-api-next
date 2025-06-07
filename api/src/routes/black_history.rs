@@ -10,13 +10,13 @@ use serde_json::json;
 use crate::db_pool::Db;
 use crate::err::AppError;
 
-#[get("/blackHistory/feed/<uid>?<per_page>&<page>")]
+#[get("/feed/<uid>?<per_page>&<page>")]
 async fn get_history_feed(
     conn: Connection<'_, Db>,
     uid: u64,
     per_page: u64,
     page: u64,
-) -> Result<JsonValue, AppError> {
+) -> Result<Json, AppError> {
     let db = conn.into_inner();
     let benbens = benben::Entity
         .select()
@@ -38,11 +38,8 @@ async fn get_history_feed(
     Ok(json!({ "feeds": benbens, "count": count }))
 }
 
-#[get("/blackHistory/usernames/<uid>")]
-async fn get_history_username_by_uid(
-    conn: Connection<'_, Db>,
-    uid: u64,
-) -> Result<JsonValue, AppError> {
+#[get("/usernames/<uid>")]
+async fn get_history_username_by_uid(conn: Connection<'_, Db>, uid: u64) -> Result<Json, AppError> {
     let db = conn.into_inner();
     let mut flag: BTreeMap<String, bool> = BTreeMap::new();
 
@@ -64,11 +61,11 @@ async fn get_history_username_by_uid(
     Ok(json!(result))
 }
 
-#[get("/blackHistory/uids/<username>")]
+#[get("/uids/<username>")]
 async fn get_history_uid_by_username(
     conn: Connection<'_, Db>,
     username: &str,
-) -> Result<JsonValue, AppError> {
+) -> Result<Json, AppError> {
     let db = conn.into_inner();
     let mut flag: BTreeMap<i32, bool> = BTreeMap::new();
 

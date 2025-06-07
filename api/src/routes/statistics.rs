@@ -1,6 +1,5 @@
 use entity::feed::{self as benben};
 use sea_orm::prelude::*;
-use sea_orm::query::*;
 use sea_orm::{EntityTrait, PaginatorTrait, QueryFilter};
 use sea_orm_rocket::Connection;
 use serde::{Deserialize, Serialize};
@@ -15,8 +14,8 @@ struct StatisticsResponse {
     today_count: u64,
 }
 
-#[get("/statistics")]
-async fn get_statistics(conn: Connection<'_, Db>) -> Result<JsonValue, AppError> {
+#[get("/")]
+async fn get_statistics(conn: Connection<'_, Db>) -> Result<Json, AppError> {
     let db = conn.into_inner();
     let yesterday = chrono::Utc::now() - std::time::Duration::from_secs(24 * 60 * 60);
 

@@ -8,8 +8,8 @@ mod db_pool;
 mod err;
 mod redis;
 mod routes;
-mod utils;
 mod tools;
+mod utils;
 
 #[allow(unused)]
 use std::env;
@@ -103,10 +103,12 @@ async fn start() -> Result<(), rocket::Error> {
             })
         }))
         .attach(cors)
-        .mount("/", get_routes!(statistics))
-        .mount("/", get_routes!(black_history))
-        .mount("/", get_routes!(tools))
-        .mount("/", get_routes!(process))
+        .mount("/statistics", get_routes!(statistics))
+        .mount("/blackHistory", get_routes!(black_history))
+        .mount("/tools", get_routes!(tools))
+        .mount("/search", get_routes!(search))
+        .mount("/list", get_routes!(list))
+        .mount("/hub", get_routes!(hub))
         .mount("/", rocket_cors::catch_all_options_routes())
         .register("/", catchers![error_handler])
         .launch()
@@ -114,7 +116,9 @@ async fn start() -> Result<(), rocket::Error> {
         .map(|_| ())
 }
 
-pub fn main() {
+fn main() {
+    dotenvy::dotenv().ok();
+
     let result = start();
 
     println!("Rocket: deorbit.");

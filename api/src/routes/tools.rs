@@ -1,11 +1,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::db_pool::Db;
-use crate::err::{self, AppError};
+use crate::err::AppError;
 use crate::redis::{self, Commands};
 use chrono::Datelike;
 use chrono::Duration;
-use chrono::TimeZone;
 use chrono::Utc;
 use entity::takedown_batches;
 use entity::{feed as benben, feed_takedown as benben_takedown};
@@ -26,8 +25,8 @@ lazy_static! {
         Regex::new(r"@\[(\S+)\]\(/user/(\d+)\)").expect("could not compile regex");
 }
 
-#[get("/tools/at/<username>")]
-async fn who_at_me(conn: Connection<'_, Db>, username: &str) -> Result<JsonValue, AppError> {
+#[get("/at/<username>")]
+async fn who_at_me(conn: Connection<'_, Db>, username: &str) -> Result<Json, AppError> {
     let db = conn.into_inner();
     let time_after = Utc::now() - Duration::days(1);
 
@@ -62,7 +61,7 @@ async fn who_at_me(conn: Connection<'_, Db>, username: &str) -> Result<JsonValue
     Ok(json!(result))
 }
 
-#[get("/tools/heatmap/<uid>")]
+#[get("/heatmap/<uid>")]
 async fn get_heatmap(conn: Connection<'_, Db>, uid: i32) -> Result<Json, AppError> {
     use chrono::NaiveDate;
 
@@ -145,11 +144,11 @@ async fn get_heatmap(conn: Connection<'_, Db>, uid: i32) -> Result<Json, AppErro
     Ok(json!(date_counts))
 }
 
-#[get("/tools/getFeed/<feed_id>")]
+#[get("/getFeed/<feed_id>")]
 async fn get_feed(
     conn: Connection<'_, Db>,
     feed_id: i32,
-) -> Result<(http::Status, JsonValue), AppError> {
+) -> Result<(http::Status, Json), AppError> {
     let db = conn.into_inner();
 
     let takedown = benben_takedown::Entity::find()
@@ -180,8 +179,8 @@ async fn get_feed(
     }
 }
 
-#[get("/tools/getRandom")]
-async fn get_random(conn: Connection<'_, Db>) -> Result<(http::Status, JsonValue), AppError> {
+#[get("/getRandom")]
+async fn get_random(conn: Connection<'_, Db>) -> Result<(http::Status, Json), AppError> {
     use rand::rngs::StdRng;
     use rand::{Rng, SeedableRng};
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -236,12 +235,12 @@ async fn get_random(conn: Connection<'_, Db>) -> Result<(http::Status, JsonValue
 /// 收集距离最新犇犇近 60 天 / 100 条（取最多）的数据，
 /// 最新的 30 天 / 50 条权重为 100，其他的按条数差递减（向下取整），直到 25。
 /// 总权重 >= 5 的才显示
-#[get("/tools/circle/<uid>")]
+#[get("/circle/<uid>")]
 async fn get_activity_circle(
     redis_conn: redis::Client<'_>,
     dbconn: Connection<'_, Db>,
     uid: i64,
-) -> Result<JsonValue, AppError> {
+) -> Result<Json, AppError> {
     let mut redis_conn = redis_conn.into_inner().get_connection();
 
     if let Ok(redis_conn) = &mut redis_conn {
@@ -347,107 +346,10 @@ async fn get_activity_circle(
     Ok(result)
 }
 
-#[get(
-    "/search/db?<keyword>&<senders>&<date_after>&<date_before>&<id_before>&<id_after>&<per_page>"
-)]
-async fn search_db(
-    conn: Connection<'_, Db>,
-    keyword: Option<&str>,
-    senders: Option<Vec<i32>>,
-    date_after: Option<i64>,
-    date_before: Option<i64>,
-    id_before: Option<i64>,
-    id_after: Option<i64>,
-    per_page: Option<u64>,
-) -> Result<(http::Status, JsonValue), AppError> {
-    let db = conn.into_inner();
-    let mut query = benben::Entity::find()
-        .left_join(benben_takedown::Entity)
-        .filter(benben_takedown::Column::FeedId.is_null())
-        .select()
-        .order_by_desc(benben::Column::Id);
-
-    let per_page = match per_page {
-        Some(x) => x,
-        None => 50,
-    };
-
-    if let Some(keyword) = keyword {
-        query = query.filter(benben::Column::Content.contains(keyword));
-    }
-
-    if let Some(senders) = senders {
-        query = query.filter(benben::Column::UserId.is_in(senders));
-    }
-
-    if let Some(date_after) = date_after {
-        let time = Utc.timestamp_micros(date_after).unwrap();
-        query = query.filter(benben::Column::Time.gte(time));
-    }
-
-    if let Some(date_before) = date_before {
-        let time = Utc.timestamp_micros(date_before).unwrap();
-        query = query.filter(benben::Column::Time.lte(time));
-    }
-
-    if let Some(id_before) = id_before {
-        query = query.filter(benben::Column::Id.gt(id_before));
-    }
-
-    if let Some(id_after) = id_after {
-        query = query.filter(benben::Column::Id.lt(id_after));
-    }
-
-    query = query.limit(per_page);
-
-    let result = query.all(db).await?;
-
-    Ok((http::Status::Ok, json!(result)))
-}
-
-#[get("/list?<uids>")]
-async fn list(
-    conn: Connection<'_, Db>,
-    uids: Option<&str>,
-) -> Result<(http::Status, JsonValue), AppError> {
-    let db = conn.into_inner();
-
-    let mut query = benben::Entity::find()
-        .left_join(benben_takedown::Entity)
-        .filter(benben_takedown::Column::FeedId.is_null())
-        .select()
-        .order_by(benben::Column::Time, Order::Desc);
-
-    match uids {
-        Some(uid_str) => {
-            let iter = uid_str.split(",").filter(|x| x.len() > 0);
-            let mut uids = Vec::new();
-            for item in iter {
-                let uid = item.trim().parse::<i32>().map_err(|_| {
-                    err::AppError::ParamValidateFailed("param contains non-integer.")
-                })?;
-                uids.push(uid);
-            }
-
-            query = query.filter(benben::Column::UserId.is_in(uids));
-            query = query.limit(100);
-        }
-        None => {
-            query = query.limit(100);
-        }
-    }
-
-    let result = query.all(db).await?;
-
-    Ok((http::Status::Ok, json!(result)))
-}
-
 export_routes![
     who_at_me,
     get_heatmap,
     get_feed,
-    search_db,
     get_random,
     get_activity_circle,
-    list,
 ];
