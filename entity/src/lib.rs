@@ -2,7 +2,7 @@
 
 pub mod prelude;
 
+pub mod circle_mention;
 pub mod feed;
 pub mod feed_takedown;
-pub mod search;
 pub mod takedown_batches;

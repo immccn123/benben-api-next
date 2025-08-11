@@ -18,15 +18,10 @@ pub enum Error {
     IoErr(#[from] std::io::Error),
     #[error("parse int error")]
     ParseIntError(#[from] std::num::ParseIntError),
-    #[error("meilisearch error")]
-    MeilisearchErrors(#[from] meilisearch_sdk::Error),
     #[error("unknown error")]
     UndefiendError(UndefiendError),
 }
 
 from_err!(UndefiendError, UndefiendError);
 
-// impl std::error::Error for Error {}
-
-pub type Result<T> = std::result::Result<T, Error>;
 pub type UndefiendError = ();

@@ -239,7 +239,7 @@ async fn get_random(conn: Connection<'_, Db>) -> Result<(http::Status, Json), Ap
 async fn get_activity_circle(
     redis_conn: redis::Client<'_>,
     dbconn: Connection<'_, Db>,
-    uid: i64,
+    uid: i32,
 ) -> Result<Json, AppError> {
     let mut redis_conn = redis_conn.into_inner().get_connection();
 
@@ -253,7 +253,6 @@ async fn get_activity_circle(
     }
 
     let db = dbconn.into_inner();
-    // @[username](/user/<uid>) or @[username](/space/show?uid=<uid>)
 
     let now = Utc::now();
     // 60 天前的时间
@@ -261,51 +260,49 @@ async fn get_activity_circle(
     // 30 天前的时间
     let past_30_days = now - Duration::days(30);
 
-    let mut pages = entity::feed::Entity::find()
+    let mut pages = entity::circle_mention::Entity::find()
         .filter(
             Condition::any()
-                .add(entity::feed::Column::UserId.eq(uid as i32))
-                .add(entity::feed::Column::Content.contains(format!("](/user/{uid})"))),
+                .add(entity::circle_mention::Column::Sender.eq(uid as i32))
+                .add(entity::circle_mention::Column::Mentioned.eq(uid as i32)),
         )
-        .order_by_desc(entity::feed::Column::Time)
-        .paginate(db, 1500);
+        .order_by_desc(entity::circle_mention::Column::Time)
+        .paginate(db, 500);
 
-    let mut weight_map: BTreeMap<i64, u64> = BTreeMap::new();
+    let mut weight_map: BTreeMap<i32, u64> = BTreeMap::new();
+    let mut filter: BTreeSet<(i32, i32, i32)> = BTreeSet::new();
     let mut benben_flag: BTreeSet<i64> = BTreeSet::new();
 
     while let Some(data) = pages.fetch_and_next().await? {
-        for benben in data {
-            let sender_id = benben.user_id as i64;
+        for mention in data {
+            let entity::circle_mention::Model {
+                sender,
+                mentioned,
+                feed_id,
+                time,
+            } = mention;
 
-            if benben_flag.len() < 100 || benben.time.ge(&past_60_days.naive_local()) {
-                benben_flag.insert(benben.id.into());
+            let ok = filter.insert((sender, mentioned, feed_id));
+            if !ok {
+                continue; // 已经处理过的记录，跳过
+            }
 
-                let captures = MENTION_REGEXP.captures_iter(&benben.content);
+            let time_delta = (time - past_30_days.naive_local()).num_seconds() as f64;
+            let total_time = Duration::days(30).num_seconds() as f64;
+            let weight = f64::min(
+                f64::max(3., 3. + (time_delta / total_time) * (100. - 3.)),
+                100.0,
+            );
 
-                for caps in captures {
-                    let (_, [_, mentioned_uid]) = caps.extract();
+            if benben_flag.len() < 100 || mention.time.ge(&past_60_days.naive_local()) {
+                benben_flag.insert(mention.feed_id.into());
 
-                    let mentioned_uid = if let Ok(uid) = mentioned_uid.parse::<i64>() {
-                        uid
-                    } else {
-                        continue;
-                    };
-
-                    let time_delta =
-                        (benben.time - past_30_days.naive_local()).num_seconds() as f64;
-                    let total_time = Duration::days(30).num_seconds() as f64;
-                    let weight = f64::min(
-                        f64::max(3., 3. + (time_delta / total_time) * (100. - 3.)),
-                        100.0,
-                    );
-
-                    if mentioned_uid == uid && sender_id != uid {
-                        // 被 at 且 非本人发送
-                        *weight_map.entry(sender_id).or_insert(0) += (weight * 0.6) as u64;
-                    } else if mentioned_uid != uid && sender_id == uid {
-                        // 本人发送并且不是 at 自己
-                        *weight_map.entry(mentioned_uid).or_insert(0) += weight as u64;
-                    }
+                if mentioned == uid && sender != uid {
+                    // 被 at 且 非本人发送
+                    *weight_map.entry(sender).or_insert(0) += (weight * 0.6) as u64;
+                } else if mentioned != uid && sender == uid {
+                    // 本人发送并且不是 at 自己
+                    *weight_map.entry(mentioned).or_insert(0) += weight as u64;
                 }
             } else {
                 break;

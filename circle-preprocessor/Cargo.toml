@@ -1,0 +1,22 @@
+[package]
+name = "circle-preprocessor"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+entity = { path = "../entity" }
+
+sea-orm = { version = "1", features = [
+    "sqlx-postgres",
+    "runtime-tokio-rustls",
+    "macros",
+] }
+
+async-trait = { version = "0.1" }
+tokio = { version = "1.45", features = ["rt", "macros", "rt-multi-thread"] }
+chrono = "0.4"
+lazy_static = "1.5"
+regex = "1.11"
+thiserror = "2.0"
+dotenvy = "0.15"
+anyhow = "1.0.98"

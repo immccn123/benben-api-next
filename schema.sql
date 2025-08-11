@@ -1,21 +1,3 @@
-/*
- Navicat Premium Data Transfer
-
- Source Server         : lgfeed
- Source Server Type    : PostgreSQL
- Source Server Version : 120015
- Source Host           : localhost:5432
- Source Catalog        : lgfeed
- Source Schema         : public
-
- Target Server Type    : PostgreSQL
- Target Server Version : 120015
- File Encoding         : 65001
-
- Date: 13/04/2024 14:49:43
-*/
-
-
 -- ----------------------------
 -- Sequence structure for feed_id_seq
 -- ----------------------------
@@ -85,4 +67,28 @@ CREATE TABLE "public"."feed_takedown" (
   "batch_id" int4 NOT NULL,                              -- 批量操作的 ID
   CONSTRAINT "fk_feed_id" FOREIGN KEY ("feed_id") REFERENCES "public"."feed" ("id") ON DELETE CASCADE,
   CONSTRAINT "fk_batch_id" FOREIGN KEY ("batch_id") REFERENCES "public"."takedown_batches" ("batch_id") ON DELETE CASCADE
+);
+
+CREATE TABLE "public"."circle_mention" (
+  "sender" int4 NOT NULL,
+  "mentioned" int4 NOT NULL,
+  "feed_id" int4 NOT NULL,
+  "time" timestamp NOT NULL,
+  PRIMARY KEY ("sender", "mentioned", "feed_id"),
+  FOREIGN KEY ("feed_id") REFERENCES "public"."feed" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+)
+;
+
+CREATE INDEX ON "public"."circle_mention" (
+  "feed_id"
+);
+
+CREATE INDEX ON "public"."circle_mention" (
+  "sender",
+  "time" DESC
+);
+
+CREATE INDEX ON "public"."circle_mention" (
+  "mentioned",
+  "time" DESC
 );

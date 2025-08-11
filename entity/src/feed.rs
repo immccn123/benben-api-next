@@ -22,8 +22,16 @@ pub struct Model {
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
-    #[sea_orm(has_many = "super::feed_takedown::Entity")]
+    #[sea_orm(has_many = "super::circle_mention::Entity")]
+    CircleMention,
+    #[sea_orm(has_one = "super::feed_takedown::Entity")]
     FeedTakedown,
+}
+
+impl Related<super::circle_mention::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::CircleMention.def()
+    }
 }
 
 impl Related<super::feed_takedown::Entity> for Entity {
