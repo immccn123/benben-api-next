@@ -66,7 +66,7 @@ async fn main() -> Result<(), err::Error> {
 
             end += 500;
 
-            if feeds.empty() {
+            if feeds.is_empty() {
                 break;
             }
         }
