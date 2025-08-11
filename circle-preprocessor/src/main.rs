@@ -28,10 +28,10 @@ async fn main() -> Result<(), err::Error> {
             + 1;
 
         // [begin, end), per_page = 100
-        let mut end = begin + 100;
+        let mut end = begin + 500;
 
         loop {
-            let begin = end - 100;
+            let begin = end - 500;
             let feeds = feed::Entity::find()
                 .filter(feed::Column::Id.gte(begin))
                 .filter(feed::Column::Id.lt(end))
@@ -64,9 +64,9 @@ async fn main() -> Result<(), err::Error> {
                 }
             }
 
-            end += 100;
+            end += 500;
 
-            if feeds.len() < 100 {
+            if feeds.empty() {
                 break;
             }
         }
