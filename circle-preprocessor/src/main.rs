@@ -19,11 +19,11 @@ async fn main() -> Result<(), err::Error> {
     let mention = Regex::new(r"@\[(\S+)\]\(/user/(\d+)\)").unwrap();
 
     loop {
-        let begin = feed::Entity::find()
-            .order_by_desc(feed::Column::Id)
+        let begin = circle_mention::Entity::find()
+            .order_by_desc(circle_mention::Column::FeedId)
             .one(&db_conn)
             .await?
-            .map(|x| x.id)
+            .map(|x| x.feed_id)
             .unwrap_or(0)
             + 1;
 
