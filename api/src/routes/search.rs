@@ -1,6 +1,5 @@
 use crate::db_pool::Db;
 use crate::err::AppError;
-use chrono::TimeZone;
 use chrono::Utc;
 use entity::{feed as benben, feed_takedown as benben_takedown};
 use rocket::http;
@@ -15,8 +14,8 @@ async fn search_db(
     conn: Connection<'_, Db>,
     keyword: Option<&str>,
     senders: Option<Vec<i32>>,
-    date_after: Option<i64>,
-    date_before: Option<i64>,
+    date_after: Option<&str>,
+    date_before: Option<&str>,
     id_before: Option<i64>,
     id_after: Option<i64>,
     per_page: Option<u64>,
@@ -42,13 +41,23 @@ async fn search_db(
     }
 
     if let Some(date_after) = date_after {
-        let time = Utc.timestamp_micros(date_after).unwrap();
+        let time = chrono::NaiveDateTime::parse_from_str(date_after, "%Y-%m-%d %H:%M:%S").map_err(
+            |e| AppError::InvalidParam(format!("param date_after validation failed: {e}")),
+        )?;
         query = query.filter(benben::Column::Time.gte(time));
     }
 
     if let Some(date_before) = date_before {
-        let time = Utc.timestamp_micros(date_before).unwrap();
+        let time = chrono::NaiveDateTime::parse_from_str(date_before, "%Y-%m-%d %H:%M:%S")
+            .map_err(|e| {
+                AppError::InvalidParam(format!("param date_before validation failed: {e}"))
+            })?;
         query = query.filter(benben::Column::Time.lte(time));
+    }
+
+    if date_after.is_none() && date_before.is_none() {
+        let time = Utc::now() - chrono::Duration::days(30);
+        query = query.filter(benben::Column::Time.gte(time));
     }
 
     if let Some(id_before) = id_before {

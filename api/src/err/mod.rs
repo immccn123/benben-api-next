@@ -19,27 +19,34 @@ pub enum AppError {
     TypeErr(&'static str),
     #[error("Param Validate Failed")]
     ParamValidateFailed(&'static str),
+    #[error("InvalidParam: {0}")]
+    InvalidParam(String),
     #[error("Network Error")]
     NetworkError(#[from] reqwest::Error),
 }
 
 impl<'r> Responder<'r, 'r> for AppError {
     fn respond_to(self, _request: &'_ rocket::Request<'_>) -> rocket::response::Result<'r> {
-        if let Self::ParamValidateFailed(msg) = self {
-            return Ok(Response::build()
-                .header(ContentType::JSON)
-                .status(Status::ImATeapot)
-                .sized_body(msg.len(), Cursor::new(msg))
-                .finalize());
-        }
-
         eprintln!(
             "AppError: {}",
             match &self {
                 Self::DbErr(err) => err.to_string(),
                 Self::TypeErr(err) => err.to_string(),
                 Self::NetworkError(err) => err.to_string(),
-                _ => panic!("never goes here"),
+                Self::ParamValidateFailed(msg) => {
+                    return Ok(Response::build()
+                        .header(ContentType::JSON)
+                        .status(Status::UnprocessableEntity)
+                        .sized_body(msg.len(), Cursor::new(*msg))
+                        .finalize());
+                }
+                Self::InvalidParam(msg) => {
+                    return Ok(Response::build()
+                        .header(ContentType::JSON)
+                        .status(Status::UnprocessableEntity)
+                        .sized_body(msg.len(), Cursor::new(msg.clone()))
+                        .finalize());
+                }
             }
         );
 

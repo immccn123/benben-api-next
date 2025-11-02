@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use rocket::fairing::{Fairing, Info, Kind};
 
+#[allow(unused)]
 pub struct CacheTheResponse {
     pub cache_time: Option<Duration>,
     pub routes: regex::RegexSet,
