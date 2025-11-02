@@ -19,19 +19,19 @@ async fn main() -> Result<(), err::Error> {
     let mention = Regex::new(r"@\[(\S+)\]\(/user/(\d+)\)").unwrap();
 
     loop {
-        let begin = feed::Entity::find()
-            .order_by_desc(feed::Column::Id)
+        let begin = circle_mention::Entity::find()
+            .order_by_desc(circle_mention::Column::FeedId)
             .one(&db_conn)
             .await?
-            .map(|x| x.id)
+            .map(|x| x.feed_id)
             .unwrap_or(0)
             + 1;
 
         // [begin, end), per_page = 100
-        let mut end = begin + 100;
+        let mut end = begin + 500;
 
         loop {
-            let begin = end - 100;
+            let begin = end - 500;
             let feeds = feed::Entity::find()
                 .filter(feed::Column::Id.gte(begin))
                 .filter(feed::Column::Id.lt(end))
@@ -64,9 +64,9 @@ async fn main() -> Result<(), err::Error> {
                 }
             }
 
-            end += 100;
+            end += 500;
 
-            if feeds.len() < 100 {
+            if feeds.is_empty() {
                 break;
             }
         }
