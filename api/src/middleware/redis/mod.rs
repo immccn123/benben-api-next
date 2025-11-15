@@ -8,12 +8,12 @@ use rocket::{
 
 pub struct Client<'a>(&'a redis::Client);
 
-pub struct RedisEngine {
+pub struct RedisFairing {
     url: String,
 }
 
 #[rocket::async_trait]
-impl Fairing for RedisEngine {
+impl Fairing for RedisFairing {
     fn info(&self) -> rocket::fairing::Info {
         Info {
             name: "Redis Engine",
@@ -29,10 +29,10 @@ impl Fairing for RedisEngine {
     }
 }
 
-impl RedisEngine {
+impl RedisFairing {
     #[allow(unused)]
     pub fn init(url: impl Into<String>) -> Self {
-        RedisEngine { url: url.into() }
+        RedisFairing { url: url.into() }
     }
 }
 

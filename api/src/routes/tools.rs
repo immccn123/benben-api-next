@@ -2,7 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::db_pool::Db;
 use crate::err::AppError;
-use crate::redis::{self, Commands};
+use crate::middleware::redis::{self, Commands};
+
 use chrono::Datelike;
 use chrono::Duration;
 use chrono::Utc;

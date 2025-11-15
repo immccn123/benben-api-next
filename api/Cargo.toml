@@ -34,6 +34,9 @@ thiserror = "2.0"
 redis = "0.32"
 dotenvy = "0.15"
 indoc = "2"
+ed25519-dalek = { version = "2.2.0", features = ["pkcs8", "signature"] }
+base64 = "0.22.1"
+pkcs8 = { version = "0.10.2", features = ["pem"] }
 
 [dependencies.sea-orm-rocket]
 version = "0.5.5"

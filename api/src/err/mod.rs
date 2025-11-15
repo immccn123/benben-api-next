@@ -15,7 +15,7 @@ use thiserror::Error;
 pub enum AppError {
     #[error("DatabaseError")]
     DbErr(#[from] sea_orm::DbErr),
-    #[error("TypeError")]
+    #[error("TypeError: {0}")]
     TypeErr(&'static str),
     #[error("Param Validate Failed")]
     ParamValidateFailed(&'static str),

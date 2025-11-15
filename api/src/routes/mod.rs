@@ -4,3 +4,4 @@ pub mod list;
 pub mod search;
 pub mod statistics;
 pub mod tools;
+pub mod user;

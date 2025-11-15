@@ -2,13 +2,14 @@
 extern crate rocket;
 extern crate lazy_static;
 
+use crate::middleware::{counter::CounterFairing, env_exposer::EnvExposer, redis::RedisFairing};
+
 #[macro_use]
 mod marco;
 mod db_pool;
 mod err;
-mod redis;
+mod middleware;
 mod routes;
-mod tools;
 mod utils;
 
 #[allow(unused)]
@@ -17,7 +18,6 @@ use std::fs::File;
 use std::io::Read;
 
 use db_pool::Db;
-use redis::RedisEngine;
 use rocket::fairing::AdHoc;
 use rocket::http::{Header, Status};
 use rocket::Request;
@@ -76,9 +76,11 @@ async fn start() -> Result<(), rocket::Error> {
 
     rocket::build()
         .attach(Db::init())
-        .attach(RedisEngine::init(
+        .attach(RedisFairing::init(
             env::var("REDIS_URL").expect("REDIS url not set"),
         ))
+        .attach(CounterFairing)
+        .attach(EnvExposer::new(&["ANON_PRIVATE_KEY", "ANON_PUBLIC_KEY"]))
         .attach(AdHoc::on_request("Save Request Time", |req, _| {
             Box::pin(async move {
                 req.add_header(Header::new(
@@ -109,6 +111,7 @@ async fn start() -> Result<(), rocket::Error> {
         .mount("/search", get_routes!(search))
         .mount("/list", get_routes!(list))
         .mount("/hub", get_routes!(hub))
+        .mount("/user", get_routes!(user))
         .mount("/", rocket_cors::catch_all_options_routes())
         .register("/", catchers![error_handler])
         .launch()
