@@ -3,3 +3,4 @@
 .cors_allow
 .tmp
 mili-writer/progress.txt
+/result
