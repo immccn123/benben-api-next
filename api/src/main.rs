@@ -3,6 +3,7 @@ extern crate rocket;
 extern crate lazy_static;
 
 use crate::middleware::{counter::CounterFairing, env_exposer::EnvExposer, redis::RedisFairing};
+use shadow_rs::shadow;
 
 #[macro_use]
 mod marco;
@@ -11,6 +12,7 @@ mod err;
 mod middleware;
 mod routes;
 mod utils;
+shadow!(build);
 
 #[allow(unused)]
 use std::env;
@@ -112,6 +114,7 @@ async fn start() -> Result<(), rocket::Error> {
         .mount("/list", get_routes!(list))
         .mount("/hub", get_routes!(hub))
         .mount("/user", get_routes!(user))
+        .mount("/diagnostic", get_routes!(diagnostic))
         .mount("/", rocket_cors::catch_all_options_routes())
         .register("/", catchers![error_handler])
         .launch()

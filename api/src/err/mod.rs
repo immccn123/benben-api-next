@@ -1,7 +1,6 @@
 use std::io::Cursor;
 
 use rocket::{
-    error,
     http::{ContentType, Status},
     response::Responder,
     Response,

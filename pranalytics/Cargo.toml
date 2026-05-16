@@ -1,0 +1,26 @@
+[package]
+name = "pranalytics"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+entity = { path = "../entity" }
+
+sea-orm = { version = "1", features = [
+    "sqlx-postgres",
+    "runtime-tokio-rustls",
+    "macros",
+] }
+
+serde_json = { version = "1" }
+serde = "1"
+
+tokio = {version="1.45",features=["macros"]}
+
+chrono = "0.4"
+lazy_static = "1.5"
+regex = "1.11"
+rand = "0.8"
+
+thiserror = "2.0"
+dotenvy = "0.15"

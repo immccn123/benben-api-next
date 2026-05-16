@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2021"
 publish = false
 
+build = "build.rs"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
 entity = { path = "../entity" }
@@ -13,6 +15,7 @@ sea-orm = { version = "1", features = [
     "runtime-tokio-rustls",
     "macros",
 ] }
+sea-orm-rocket = "0.5.5"
 
 async-trait = { version = "0.1" }
 
@@ -38,5 +41,7 @@ ed25519-dalek = { version = "2.2.0", features = ["pkcs8", "signature"] }
 base64 = "0.22.1"
 pkcs8 = { version = "0.10.2", features = ["pem"] }
 
-[dependencies.sea-orm-rocket]
-version = "0.5.5"
+shadow-rs = { version = "2.0.0", default-feature = false }
+
+[build-dependencies]
+shadow-rs = "2.0.0"
