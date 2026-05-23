@@ -2,16 +2,13 @@ use crate::db_pool::Db;
 use crate::err::{self, AppError};
 use entity::{feed as benben, feed_takedown as benben_takedown};
 use rocket::http;
+use rocket_db_pools::Connection;
 use sea_orm::{prelude::*, query::*, EntityTrait, QueryFilter};
-use sea_orm_rocket::Connection;
 use serde_json::json;
 
 #[get("/?<uids>")]
-async fn list(
-    conn: Connection<'_, Db>,
-    uids: Option<&str>,
-) -> Result<(http::Status, Json), AppError> {
-    let db = conn.into_inner();
+async fn list(conn: Connection<Db>, uids: Option<&str>) -> Result<(http::Status, Json), AppError> {
+    let db = &conn.into_inner();
 
     let mut query = benben::Entity::find()
         .left_join(benben_takedown::Entity)

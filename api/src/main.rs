@@ -1,3 +1,8 @@
+use mimalloc::MiMalloc;
+
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
+
 #[macro_use]
 extern crate rocket;
 extern crate lazy_static;
@@ -5,6 +10,7 @@ extern crate lazy_static;
 use crate::middleware::{counter::CounterFairing, env_exposer::EnvExposer, redis::RedisFairing};
 use shadow_rs::shadow;
 
+// Declare Modules
 #[macro_use]
 mod marco;
 mod db_pool;
@@ -24,7 +30,7 @@ use rocket::fairing::AdHoc;
 use rocket::http::{Header, Status};
 use rocket::Request;
 use rocket_cors::AllowedOrigins;
-use sea_orm_rocket::Database;
+use rocket_db_pools::Database;
 
 macro_rules! get_routes {
     ($x:ident) => {{

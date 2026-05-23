@@ -4,15 +4,15 @@ use crate::err::AppError;
 use chrono::Utc;
 use entity::{feed as benben, feed_takedown as benben_takedown};
 use rocket::http;
+use rocket_db_pools::Connection;
 use sea_orm::prelude::*;
 use sea_orm::query::*;
 use sea_orm::{EntityTrait, QueryFilter};
-use sea_orm_rocket::Connection;
 use serde_json::json;
 
 #[get("/db?<keyword>&<senders>&<date_after>&<date_before>&<id_before>&<id_after>&<per_page>")]
 async fn search_db(
-    conn: Connection<'_, Db>,
+    conn: Connection<Db>,
     keyword: Option<&str>,
     senders: Option<Vec<i32>>,
     date_after: Option<&str>,
@@ -21,7 +21,7 @@ async fn search_db(
     id_after: Option<i64>,
     per_page: Option<u64>,
 ) -> Result<(http::Status, Json), AppError> {
-    let db = conn.into_inner();
+    let db = &conn.into_inner();
     let mut query = benben::Entity::find()
         .left_join(benben_takedown::Entity)
         .filter(benben_takedown::Column::FeedId.is_null())

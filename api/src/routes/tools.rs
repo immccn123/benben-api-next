@@ -10,15 +10,16 @@ use chrono::Utc;
 use entity::takedown_batches;
 use entity::{feed as benben, feed_takedown as benben_takedown};
 use lazy_static::lazy_static;
+use rand::RngExt;
 use regex::Regex;
 use rocket::http;
+use rocket_db_pools::Connection;
 use sea_orm::prelude::*;
 use sea_orm::query::*;
 use sea_orm::sea_query::Func;
 use sea_orm::sea_query::SimpleExpr;
 use sea_orm::FromQueryResult;
 use sea_orm::{EntityTrait, QueryFilter};
-use sea_orm_rocket::Connection;
 use serde_json::json;
 
 lazy_static! {
@@ -27,8 +28,8 @@ lazy_static! {
 }
 
 #[get("/at/<username>")]
-async fn who_at_me(conn: Connection<'_, Db>, username: &str) -> Result<Json, AppError> {
-    let db = conn.into_inner();
+async fn who_at_me(conn: Connection<Db>, username: &str) -> Result<Json, AppError> {
+    let db = &conn.into_inner();
     let time_after = Utc::now() - Duration::days(1);
 
     let username: String = username.to_lowercase();
@@ -63,10 +64,10 @@ async fn who_at_me(conn: Connection<'_, Db>, username: &str) -> Result<Json, App
 }
 
 #[get("/heatmap/<uid>")]
-async fn get_heatmap(conn: Connection<'_, Db>, uid: i32) -> Result<Json, AppError> {
+async fn get_heatmap(conn: Connection<Db>, uid: i32) -> Result<Json, AppError> {
     use chrono::NaiveDate;
 
-    let db: &DatabaseConnection = conn.into_inner();
+    let db: &DatabaseConnection = &conn.into_inner();
     let today = Utc::now().naive_utc().date();
     let duration = 365 - (8 - today.weekday().num_days_from_sunday()) % 7;
     // let duration = 365;
@@ -146,11 +147,8 @@ async fn get_heatmap(conn: Connection<'_, Db>, uid: i32) -> Result<Json, AppErro
 }
 
 #[get("/getFeed/<feed_id>")]
-async fn get_feed(
-    conn: Connection<'_, Db>,
-    feed_id: i32,
-) -> Result<(http::Status, Json), AppError> {
-    let db = conn.into_inner();
+async fn get_feed(conn: Connection<Db>, feed_id: i32) -> Result<(http::Status, Json), AppError> {
+    let db = &conn.into_inner();
 
     let takedown = benben_takedown::Entity::find()
         .filter(benben_takedown::Column::FeedId.eq(feed_id))
@@ -181,9 +179,9 @@ async fn get_feed(
 }
 
 #[get("/getRandom")]
-async fn get_random(conn: Connection<'_, Db>) -> Result<(http::Status, Json), AppError> {
+async fn get_random(conn: Connection<Db>) -> Result<(http::Status, Json), AppError> {
     use rand::rngs::StdRng;
-    use rand::{Rng, SeedableRng};
+    use rand::SeedableRng;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[derive(FromQueryResult)]
@@ -191,7 +189,7 @@ async fn get_random(conn: Connection<'_, Db>) -> Result<(http::Status, Json), Ap
         count: i32,
     }
 
-    let db = conn.into_inner();
+    let db = &conn.into_inner();
 
     let total = benben::Entity::find()
         .select_only()
@@ -209,7 +207,7 @@ async fn get_random(conn: Connection<'_, Db>) -> Result<(http::Status, Json), Ap
     let mut rng = StdRng::seed_from_u64(seed);
 
     let id = loop {
-        let id = rng.gen_range(0..=total);
+        let id = rng.random_range(0..total);
         if let None = benben_takedown::Entity::find()
             .filter(benben_takedown::Column::FeedId.eq(id))
             .find_also_related(takedown_batches::Entity)
@@ -239,7 +237,7 @@ async fn get_random(conn: Connection<'_, Db>) -> Result<(http::Status, Json), Ap
 #[get("/circle/<uid>")]
 async fn get_activity_circle(
     redis_conn: redis::Client<'_>,
-    dbconn: Connection<'_, Db>,
+    dbconn: Connection<Db>,
     uid: i32,
 ) -> Result<Json, AppError> {
     let mut redis_conn = redis_conn.into_inner().get_connection();
@@ -253,7 +251,7 @@ async fn get_activity_circle(
         }
     }
 
-    let db = dbconn.into_inner();
+    let db = &dbconn.into_inner();
 
     let now = Utc::now();
     // 60 天前的时间
@@ -270,7 +268,7 @@ async fn get_activity_circle(
         .order_by_desc(entity::circle_mention::Column::Time)
         .paginate(db, 500);
 
-    let mut weight_map: BTreeMap<i32, u64> = BTreeMap::new();
+    let mut weight_map: BTreeMap<i32, f64> = BTreeMap::new();
     let mut filter: BTreeSet<(i32, i32, i32)> = BTreeSet::new();
     let mut benben_flag: BTreeSet<i64> = BTreeSet::new();
 
@@ -300,10 +298,10 @@ async fn get_activity_circle(
 
                 if mentioned == uid && sender != uid {
                     // 被 at 且 非本人发送
-                    *weight_map.entry(sender).or_insert(0) += (weight * 0.6) as u64;
+                    *weight_map.entry(sender).or_insert(0.) += weight * 0.6;
                 } else if mentioned != uid && sender == uid {
                     // 本人发送并且不是 at 自己
-                    *weight_map.entry(mentioned).or_insert(0) += weight as u64;
+                    *weight_map.entry(mentioned).or_insert(0.) += weight;
                 }
             } else {
                 break;
@@ -313,7 +311,11 @@ async fn get_activity_circle(
 
     // 整理权重
     let mut result: Vec<_> = weight_map.into_iter().collect::<Vec<_>>();
-    result.sort_unstable_by(|(_, v1), (_, v2)| v1.cmp(v2).reverse());
+    result.sort_unstable_by(|(_, v1), (_, v2)| {
+        v1.partial_cmp(v2)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .reverse()
+    });
 
     let result: Vec<_> = result
         .into_iter()

@@ -1,7 +1,7 @@
 use entity::feed::{self as benben};
+use rocket_db_pools::Connection;
 use sea_orm::prelude::*;
 use sea_orm::{EntityTrait, PaginatorTrait, QueryFilter};
-use sea_orm_rocket::Connection;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
@@ -15,8 +15,8 @@ struct StatisticsResponse {
 }
 
 #[get("/")]
-async fn get_statistics(conn: Connection<'_, Db>) -> Result<Json, AppError> {
-    let db = conn.into_inner();
+async fn get_statistics(conn: Connection<Db>) -> Result<Json, AppError> {
+    let db = &conn.into_inner();
     let yesterday = chrono::Utc::now() - std::time::Duration::from_secs(24 * 60 * 60);
 
     let total_count = benben::Entity::find().count(db).await?;

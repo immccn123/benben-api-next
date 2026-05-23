@@ -15,12 +15,12 @@ sea-orm = { version = "1", features = [
 serde_json = { version = "1" }
 serde = "1"
 
-tokio = {version="1.45",features=["macros"]}
+tokio = { version="1.52", features=["macros"] }
 
 chrono = "0.4"
 lazy_static = "1.5"
-regex = "1.11"
-rand = "0.8"
+regex = "1.12"
+rand = "0.10"
 
 thiserror = "2.0"
 dotenvy = "0.15"

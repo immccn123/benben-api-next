@@ -3,16 +3,16 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use entity::feed as benben;
 
 use rand::SeedableRng;
-use rand::{rngs::StdRng, seq::SliceRandom};
+use rand::{prelude::*, rngs::StdRng};
+use rocket_db_pools::Connection;
 use sea_orm::{prelude::*, Statement};
-use sea_orm_rocket::Connection;
 use serde_json::json;
 
 use crate::{db_pool::Db, err::AppError};
 
 #[get("/ccb/getRandom")]
-async fn random3(conn: Connection<'_, Db>) -> Result<Json, AppError> {
-    let db = conn.into_inner();
+async fn random3(conn: Connection<Db>) -> Result<Json, AppError> {
+    let db = &conn.into_inner();
 
     let result = db
         .query_all(Statement::from_sql_and_values(
@@ -46,7 +46,7 @@ async fn random3(conn: Connection<'_, Db>) -> Result<Json, AppError> {
     let mut rng = StdRng::seed_from_u64(seed);
 
     let result = result
-        .choose_multiple(&mut rng, 10)
+        .sample(&mut rng, 10)
         .map(|x| x.to_owned())
         .collect::<Vec<_>>();
 

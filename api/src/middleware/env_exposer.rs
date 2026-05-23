@@ -5,8 +5,10 @@ use rocket::{
 };
 use std::{collections::HashMap, env};
 
+#[allow(unused)]
 pub struct EnvStore(HashMap<String, String>);
 
+#[allow(unused)]
 pub struct EnvGuard<'r>(&'r EnvStore);
 
 pub struct EnvExposer {
@@ -65,6 +67,7 @@ impl<'r> FromRequest<'r> for EnvGuard<'r> {
 }
 
 impl<'a> EnvGuard<'a> {
+    #[allow(unused)]
     pub fn get(&self, key: &str) -> Option<&str> {
         (self.0).0.get(key).map(|s| s.as_str())
     }

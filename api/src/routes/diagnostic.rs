@@ -1,5 +1,5 @@
 use ::redis::Commands;
-use sea_orm_rocket::Connection;
+use rocket_db_pools::Connection;
 use serde_json::json;
 
 use crate::{build, db_pool::Db, err::AppError, middleware::redis};
@@ -7,9 +7,9 @@ use crate::{build, db_pool::Db, err::AppError, middleware::redis};
 #[get("/")]
 async fn diagnostic(
     redis_conn: redis::Client<'_>,
-    db: Connection<'_, Db>,
+    db: Connection<Db>,
 ) -> Result<serde_json::Value, AppError> {
-    let db = db.into_inner();
+    let db = &db.into_inner();
     let redis_server = redis_conn.into_inner();
 
     let database_status = if db.ping().await.is_ok() {

@@ -22,6 +22,8 @@ pub enum AppError {
     InvalidParam(String),
     #[error("Network Error")]
     NetworkError(#[from] reqwest::Error),
+    #[error("Unimplemented Feature")]
+    UnimplementedYet,
 }
 
 impl<'r> Responder<'r, 'r> for AppError {
@@ -32,6 +34,8 @@ impl<'r> Responder<'r, 'r> for AppError {
                 Self::DbErr(err) => err.to_string(),
                 Self::TypeErr(err) => err.to_string(),
                 Self::NetworkError(err) => err.to_string(),
+
+                // Nothing to worry about
                 Self::ParamValidateFailed(msg) => {
                     return Ok(Response::build()
                         .header(ContentType::JSON)
@@ -45,6 +49,9 @@ impl<'r> Responder<'r, 'r> for AppError {
                         .status(Status::UnprocessableEntity)
                         .sized_body(msg.len(), Cursor::new(msg.clone()))
                         .finalize());
+                }
+                Self::UnimplementedYet => {
+                    return Ok(Response::build().status(Status::NotImplemented).finalize());
                 }
             }
         );

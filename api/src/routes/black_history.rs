@@ -1,10 +1,10 @@
 use std::collections::BTreeMap;
 
 use entity::{feed as benben, feed_takedown as benben_takedown};
+use rocket_db_pools::Connection;
 use sea_orm::prelude::*;
 use sea_orm::query::*;
 use sea_orm::{EntityOrSelect, QueryFilter};
-use sea_orm_rocket::Connection;
 use serde_json::json;
 
 use crate::db_pool::Db;
@@ -12,12 +12,13 @@ use crate::err::AppError;
 
 #[get("/feed/<uid>?<per_page>&<page>")]
 async fn get_history_feed(
-    conn: Connection<'_, Db>,
+    db: Connection<Db>,
     uid: u64,
     per_page: u64,
     page: u64,
 ) -> Result<Json, AppError> {
-    let db = conn.into_inner();
+    let db = &db.into_inner();
+
     let benbens = benben::Entity
         .select()
         .left_join(benben_takedown::Entity)
@@ -39,9 +40,9 @@ async fn get_history_feed(
 }
 
 #[get("/usernames/<uid>")]
-async fn get_history_username_by_uid(conn: Connection<'_, Db>, uid: u64) -> Result<Json, AppError> {
-    let db = conn.into_inner();
+async fn get_history_username_by_uid(db: Connection<Db>, uid: u64) -> Result<Json, AppError> {
     let mut flag: BTreeMap<String, bool> = BTreeMap::new();
+    let db = &db.into_inner();
 
     let usernames: Vec<_> = benben::Entity::find()
         .select_column(benben::Column::Username)
@@ -62,11 +63,8 @@ async fn get_history_username_by_uid(conn: Connection<'_, Db>, uid: u64) -> Resu
 }
 
 #[get("/uids/<username>")]
-async fn get_history_uid_by_username(
-    conn: Connection<'_, Db>,
-    username: &str,
-) -> Result<Json, AppError> {
-    let db = conn.into_inner();
+async fn get_history_uid_by_username(db: Connection<Db>, username: &str) -> Result<Json, AppError> {
+    let db = &db.into_inner();
     let mut flag: BTreeMap<i32, bool> = BTreeMap::new();
 
     let uids: Vec<_> = benben::Entity::find()
