@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::{Arc, OnceLock};
 
 use crate::db_pool::Db;
 use crate::err::AppError;
@@ -7,6 +8,7 @@ use crate::middleware::redis::{self, Commands};
 use chrono::Datelike;
 use chrono::Duration;
 use chrono::Utc;
+use dashmap::DashMap;
 use entity::takedown_batches;
 use entity::{feed as benben, feed_takedown as benben_takedown};
 use lazy_static::lazy_static;
@@ -21,6 +23,7 @@ use sea_orm::sea_query::SimpleExpr;
 use sea_orm::FromQueryResult;
 use sea_orm::{EntityTrait, QueryFilter};
 use serde_json::json;
+use tokio::sync::Mutex;
 
 lazy_static! {
     static ref MENTION_REGEXP: Regex =
@@ -230,6 +233,12 @@ async fn get_random(conn: Connection<Db>) -> Result<(http::Status, Json), AppErr
     }
 }
 
+static UID_LOCKS: OnceLock<DashMap<i32, Arc<Mutex<()>>>> = OnceLock::new();
+
+fn get_uid_locks() -> &'static DashMap<i32, Arc<Mutex<()>>> {
+    UID_LOCKS.get_or_init(DashMap::new)
+}
+
 /// 权重：被提及、主动提及 = 100
 /// 收集距离最新犇犇近 60 天 / 100 条（取最多）的数据，
 /// 最新的 30 天 / 50 条权重为 100，其他的按条数差递减（向下取整），直到 25。
@@ -241,10 +250,28 @@ async fn get_activity_circle(
     uid: i32,
 ) -> Result<Json, AppError> {
     let mut redis_conn = redis_conn.into_inner().get_connection();
+    let cache_key = format!("circle/{uid}");
 
-    if let Ok(redis_conn) = &mut redis_conn {
-        let cached: Result<String, _> = redis_conn.get(format!("circle/{uid}"));
-        if let Ok(cached) = cached {
+    if let Ok(conn) = &mut redis_conn {
+        use redis::Commands;
+        if let Ok(cached) = conn.get::<_, String>(&cache_key) {
+            let mut json: Json = serde_json::from_str(&cached).expect("unexpected non-JSON string");
+            json["cacheHit"] = json!(true);
+            return Ok(json);
+        }
+    }
+
+    let locks = get_uid_locks();
+    let lock = locks
+        .entry(uid)
+        .or_insert_with(|| Arc::new(Mutex::new(())))
+        .clone();
+
+    let _guard = lock.lock().await;
+
+    if let Ok(conn) = &mut redis_conn {
+        use redis::Commands;
+        if let Ok(cached) = conn.get::<_, String>(&cache_key) {
             let mut json: Json = serde_json::from_str(&cached).expect("unexpected non-JSON string");
             json["cacheHit"] = json!(true);
             return Ok(json);
@@ -252,11 +279,8 @@ async fn get_activity_circle(
     }
 
     let db = &dbconn.into_inner();
-
     let now = Utc::now();
-    // 60 天前的时间
     let past_60_days = now - Duration::days(60);
-    // 30 天前的时间
     let past_30_days = now - Duration::days(30);
 
     let mut pages = entity::circle_mention::Entity::find()
@@ -309,7 +333,6 @@ async fn get_activity_circle(
         }
     }
 
-    // 整理权重
     let mut result: Vec<_> = weight_map.into_iter().collect::<Vec<_>>();
     result.sort_unstable_by(|(_, v1), (_, v2)| {
         v1.partial_cmp(v2)
@@ -317,7 +340,7 @@ async fn get_activity_circle(
             .reverse()
     });
 
-    let result: Vec<_> = result
+    let result_arr: Vec<_> = result
         .into_iter()
         .map(|(k, v)| {
             json!({
@@ -327,8 +350,8 @@ async fn get_activity_circle(
         })
         .collect();
 
-    let result = json!({
-        "result": result,
+    let result_json = json!({
+        "result": result_arr,
         "benbenCnt": benben_flag.len(),
         "cacheHit": false,
     });
@@ -337,15 +360,13 @@ async fn get_activity_circle(
         redis_conn
             .set_ex::<String, String, String>(
                 format!("circle/{uid}"),
-                result.to_string(),
+                result_json.to_string(),
                 Duration::hours(8).num_seconds() as u64,
             )
             .unwrap();
     }
-
-    Ok(result)
+    Ok(result_json)
 }
-
 export_routes![
     who_at_me,
     get_heatmap,
