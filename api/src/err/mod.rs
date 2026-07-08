@@ -24,6 +24,8 @@ pub enum AppError {
     NetworkError(#[from] reqwest::Error),
     #[error("Unimplemented Feature")]
     UnimplementedYet,
+    #[error("ModelError: {0}")]
+    ModelError(String),
 }
 
 impl<'r> Responder<'r, 'r> for AppError {
@@ -52,6 +54,13 @@ impl<'r> Responder<'r, 'r> for AppError {
                 }
                 Self::UnimplementedYet => {
                     return Ok(Response::build().status(Status::NotImplemented).finalize());
+                }
+                Self::ModelError(msg) => {
+                    return Ok(Response::build()
+                        .header(ContentType::JSON)
+                        .status(Status::InternalServerError)
+                        .sized_body(msg.len(), Cursor::new(msg.clone()))
+                        .finalize());
                 }
             }
         );

@@ -8,6 +8,7 @@ extern crate rocket;
 extern crate lazy_static;
 
 use crate::middleware::{counter::CounterFairing, env_exposer::EnvExposer, redis::RedisFairing};
+use crate::routes::fun::DuelState;
 use shadow_rs::shadow;
 
 // Declare Modules
@@ -82,7 +83,10 @@ async fn start() -> Result<(), rocket::Error> {
     .to_cors()
     .expect("could not generate CORS options");
 
+    let duel_state = DuelState::new().expect("Failed to load ONNX model for /fun/duel");
+
     rocket::build()
+        .manage(duel_state)
         .attach(Db::init())
         .attach(RedisFairing::init(
             env::var("REDIS_URL").expect("REDIS url not set"),
@@ -121,6 +125,7 @@ async fn start() -> Result<(), rocket::Error> {
         .mount("/hub", get_routes!(hub))
         .mount("/user", get_routes!(user))
         .mount("/diagnostic", get_routes!(diagnostic))
+        .mount("/fun", get_routes!(fun))
         .mount("/", rocket_cors::catch_all_options_routes())
         .register("/", catchers![error_handler])
         .launch()

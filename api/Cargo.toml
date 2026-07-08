@@ -49,5 +49,13 @@ parking_lot = "0.12.5"
 mimalloc = { version = "0.1", features = ["secure", "override"] }
 dashmap = "6.2.1"
 
+# Duel / NLP
+hf-hub = "0.4"
+safetensors = "0.4"
+ndarray = "0.16"
+tokenizers = "0.21"
+jieba-rs = "0.7"
+ahash = "0.8"
+
 [build-dependencies]
 shadow-rs = "2.0.0"
