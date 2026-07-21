@@ -11,7 +11,6 @@ use crate::middleware::{counter::CounterFairing, env_exposer::EnvExposer, redis:
 use crate::routes::fun::DuelState;
 use shadow_rs::shadow;
 
-// Declare Modules
 #[macro_use]
 mod marco;
 mod db_pool;
@@ -67,10 +66,14 @@ async fn start() -> Result<(), rocket::Error> {
     if let Ok(file) = &mut File::open(".cors_allow") {
         let mut buf = String::new();
         if let Ok(_) = file.read_to_string(&mut buf) {
-            cors_allow.extend(buf.lines().map(|x| {
-                println!("CORS: {x}");
-                x.to_string()
-            }));
+            cors_allow.extend(
+                buf.lines()
+                    .map(|x| {
+                        println!("CORS: {x}");
+                        x.to_string()
+                    })
+                    .filter(|x| !x.is_empty()),
+            );
         }
     }
 

@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "api", "circle-preprocessor", "entity", "mili-writer", "pranalytics", "takedown"]
+members = ["crates/api", "crates/auth", "crates/circle-preprocessor", "crates/entity", "crates/pranalytics", "crates/takedown"]
 resolver = "2"
 
 # [profile.release]

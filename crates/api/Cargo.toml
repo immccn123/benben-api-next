@@ -18,8 +18,7 @@ sea-orm = { version = "1", features = [
 sea-orm-rocket = "0.6.0"
 rocket_db_pools = "0.2.0"
 
-
-async-trait = { version = "0.1" }
+async-trait = "0.1"
 
 rocket = { version = "0.5.1", features = ["json"] }
 rocket_cors = "0.6.0"
@@ -27,24 +26,23 @@ rocket_cors = "0.6.0"
 serde_json = { version = "1" }
 serde = "1"
 
-tokio = "1.52"
+tokio = "1.53"
 
 reqwest = { version = "0.13", features = ["json"] }
 chrono = "0.4"
 lazy_static = "1.5"
-regex = "1.12"
+regex = "1.13"
 rand = "0.10"
 
 thiserror = "2.0"
-redis = "1.2"
+redis = "1.4"
 dotenvy = "0.15"
 indoc = "2"
 ed25519-dalek = { version = "2.2.0", features = ["pkcs8", "signature"] }
 base64 = "0.22.1"
 pkcs8 = { version = "0.11", features = ["pem"] }
 
-shadow-rs = { version = "2.0.0", default-feature = false }
-parking_lot = "0.12.5"
+shadow-rs = { version = "2.0.0" }
 
 mimalloc = { version = "0.1", features = ["secure", "override"] }
 dashmap = "6.2.1"

@@ -13,10 +13,10 @@ sea-orm = { version = "1", features = [
 ] }
 
 async-trait = { version = "0.1" }
-tokio = { version = "1.52", features = ["rt", "macros", "rt-multi-thread"] }
+tokio = { version = "1.53", features = ["rt", "macros", "rt-multi-thread"] }
 chrono = "0.4"
 lazy_static = "1.5"
-regex = "1.12"
+regex = "1.13"
 thiserror = "2.0"
 dotenvy = "0.15"
 anyhow = "1.0"
