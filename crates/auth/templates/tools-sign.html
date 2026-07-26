@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>凭证工具 - 犇站 SSO</title>
+    <script>const _q=matchMedia('(prefers-color-scheme:dark)');document.documentElement.dataset.bsTheme=_q.matches?'dark':'light';_q.addEventListener('change',e=>document.documentElement.dataset.bsTheme=e.matches?'dark':'light');</script>
+    <link rel="stylesheet" href="/static/bootstrap.min.css">
+    <script defer src="/static/alpine.min.js"></script>
+</head>
+<body x-data="tool" class="py-4 px-3">
+    <div class="mx-auto" style="max-width:720px;">
+
+        <div class="mb-4 pb-3" style="border-bottom:1px solid rgba(var(--bs-body-color-rgb),.08);">
+            <h1 class="fw-bold text-uppercase mb-1" style="font-size:2rem;letter-spacing:-.03em;">Credential Tool</h1>
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-primary rounded-0 font-monospace text-uppercase" style="font-size:10px;letter-spacing:.05em;">ADMIN</span>
+                <span class="font-monospace text-uppercase text-body-tertiary" style="font-size:11px;letter-spacing:.12em;">SSO Key Derivation &amp; Credential</span>
+            </div>
+        </div>
+
+        <!-- Root Key -->
+        <div class="bg-body-secondary shadow-sm mb-4" style="border-left:4px solid var(--bs-primary);">
+            <div class="px-3 py-2 border-bottom border-opacity-10">
+                <span class="font-monospace text-uppercase text-primary fw-bold" style="font-size:11px;letter-spacing:.1em;">根密钥</span>
+            </div>
+            <div class="p-4 d-flex flex-column gap-3">
+                <p class="small text-body-tertiary mb-0">根私钥用于派生 App 密钥。根公钥配置在服务端 AUTH_CLIENT_VERIFY_KEY。</p>
+                <div>
+                    <label class="font-monospace text-uppercase text-body-tertiary d-block mb-1" style="font-size:10px;letter-spacing:.1em;">根私钥 PEM</label>
+                    <textarea class="form-control form-control-sm rounded-0 font-monospace" x-model="rootKey" rows="5" placeholder="-----BEGIN PRIVATE KEY-----&#10;...&#10;-----END PRIVATE KEY-----" style="font-size:.75rem;"></textarea>
+                </div>
+                <div>
+                    <button class="btn btn-outline-primary rounded-0 fw-bold text-uppercase btn-sm" style="letter-spacing:.08em;" @click="genRootKey" x-bind:disabled="loadingRoot">
+                        <span x-show="loadingRoot" class="spinner-border spinner-border-sm me-1" role="status"></span>
+                        <span x-show="!loadingRoot">生成根密钥对 / GEN ROOT</span>
+                        <span x-show="loadingRoot">生成中...</span>
+                    </button>
+                </div>
+                <template x-if="rootPubPem">
+                    <div>
+                        <label class="font-monospace text-uppercase text-body-tertiary d-block mb-1" style="font-size:10px;letter-spacing:.1em;">根公钥 PEM（→ AUTH_CLIENT_VERIFY_KEY）</label>
+                        <textarea class="form-control form-control-sm rounded-0 font-monospace" rows="4" readonly x-text="rootPubPem" style="font-size:.75rem;"></textarea>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <!-- Derive App Key -->
+        <div class="bg-body-secondary shadow-sm mb-4" style="border-left:4px solid var(--bs-primary);">
+            <div class="px-3 py-2 border-bottom border-opacity-10">
+                <span class="font-monospace text-uppercase text-primary fw-bold" style="font-size:11px;letter-spacing:.1em;">派生 App 密钥</span>
+            </div>
+            <div class="p-4 d-flex flex-column gap-3">
+                <div>
+                    <label class="font-monospace text-uppercase text-body-tertiary d-block mb-1" style="font-size:10px;letter-spacing:.1em;">app_id</label>
+                    <input type="text" class="form-control form-control-sm rounded-0" x-model="appId" placeholder="my-app">
+                </div>
+                <div>
+                    <button class="btn btn-primary rounded-0 fw-bold text-uppercase" style="letter-spacing:.08em;" @click="deriveKey" x-bind:disabled="loadingDerive || !rootKey || !appId">
+                        <span x-show="loadingDerive" class="spinner-border spinner-border-sm me-1" role="status"></span>
+                        <span x-show="!loadingDerive">派生 / DERIVE</span>
+                        <span x-show="loadingDerive">派生中...</span>
+                    </button>
+                    <div x-show="deriveError" class="small text-danger mt-2" x-text="deriveError"></div>
+                </div>
+                <template x-if="appPubPem">
+                    <div class="d-flex flex-column gap-3">
+                        <div>
+                            <label class="font-monospace text-uppercase text-body-tertiary d-block mb-1" style="font-size:10px;letter-spacing:.1em;">App 公钥 PEM</label>
+                            <textarea class="form-control form-control-sm rounded-0 font-monospace" rows="4" readonly x-text="appPubPem" style="font-size:.75rem;"></textarea>
+                        </div>
+                        <div>
+                            <label class="font-monospace text-uppercase text-body-tertiary d-block mb-1" style="font-size:10px;letter-spacing:.1em;">App 私钥 PEM（客户端保管，用于 Refresh 签名）</label>
+                            <textarea class="form-control form-control-sm rounded-0 font-monospace" rows="5" readonly x-text="appPrivPem" style="font-size:.75rem;"></textarea>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <!-- Sign Credential -->
+        <div class="bg-body-secondary shadow-sm mb-4" style="border-left:4px solid var(--bs-primary);">
+            <div class="px-3 py-2 border-bottom border-opacity-10">
+                <span class="font-monospace text-uppercase text-primary fw-bold" style="font-size:11px;letter-spacing:.1em;">签发凭证</span>
+            </div>
+            <div class="p-4 d-flex flex-column gap-3">
+                <div>
+                    <label class="font-monospace text-uppercase text-body-tertiary d-block mb-1" style="font-size:10px;letter-spacing:.1em;">callback_url</label>
+                    <input type="text" class="form-control form-control-sm rounded-0" x-model="callbackUrl" placeholder="https://my.app/callback">
+                </div>
+                <div>
+                    <button class="btn btn-primary rounded-0 fw-bold text-uppercase" style="letter-spacing:.08em;" @click="signCredential" x-bind:disabled="loadingCred || !rootKey || !appId || !callbackUrl">
+                        <span x-show="loadingCred" class="spinner-border spinner-border-sm me-1" role="status"></span>
+                        <span x-show="!loadingCred">签发凭证 / SIGN</span>
+                        <span x-show="loadingCred">签名中...</span>
+                    </button>
+                    <div x-show="credError" class="small text-danger mt-2" x-text="credError"></div>
+                </div>
+                <template x-if="credential">
+                    <div class="d-flex flex-column gap-3">
+                        <div>
+                            <label class="font-monospace text-uppercase text-body-tertiary d-block mb-1" style="font-size:10px;letter-spacing:.1em;">凭证（86 字符）</label>
+                            <input type="text" class="form-control form-control-sm rounded-0 font-monospace" readonly x-bind:value="credential" style="font-size:.75rem;">
+                        </div>
+                        <div>
+                            <label class="font-monospace text-uppercase text-body-tertiary d-block mb-1" style="font-size:10px;letter-spacing:.1em;">签名原文</label>
+                            <input type="text" class="form-control form-control-sm rounded-0 font-monospace" readonly x-bind:value="signMessage" style="font-size:.75rem;">
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <!-- Build URL -->
+        <div class="bg-body-secondary shadow-sm mb-4" style="border-left:4px solid var(--bs-primary);">
+            <div class="px-3 py-2 border-bottom border-opacity-10">
+                <span class="font-monospace text-uppercase text-primary fw-bold" style="font-size:11px;letter-spacing:.1em;">构建认证链接</span>
+            </div>
+            <div class="p-4 d-flex flex-column gap-3">
+                <div>
+                    <label class="font-monospace text-uppercase text-body-tertiary d-block mb-1" style="font-size:10px;letter-spacing:.1em;">state（可选）</label>
+                    <input type="text" class="form-control form-control-sm rounded-0" x-model="urlState">
+                </div>
+                <div>
+                    <button class="btn btn-primary rounded-0 fw-bold text-uppercase" style="letter-spacing:.08em;" @click="buildUrl" x-bind:disabled="!credential || !appId || !callbackUrl">生成 / BUILD</button>
+                </div>
+                <template x-if="authUrl">
+                    <div class="d-flex flex-column gap-2">
+                        <div>
+                            <label class="font-monospace text-uppercase text-body-tertiary d-block mb-1" style="font-size:10px;letter-spacing:.1em;">认证链接</label>
+                            <textarea class="form-control form-control-sm rounded-0 font-monospace" rows="3" readonly x-text="authUrl" style="font-size:.75rem;"></textarea>
+                        </div>
+                        <div>
+                            <a x-bind:href="authUrl" class="btn btn-sm btn-outline-primary rounded-0 fw-bold text-uppercase" style="letter-spacing:.08em;" target="_blank">测试 / TEST</a>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-end align-items-center gap-1 pb-2" style="border-top:1px solid rgba(var(--bs-body-color-rgb),.08);padding-top:.75rem;">
+            <div class="bg-primary" style="width:2rem;height:3px;"></div>
+            <div class="bg-primary opacity-50" style="width:.6rem;height:3px;"></div>
+            <div class="bg-primary opacity-25" style="width:.6rem;height:3px;"></div>
+        </div>
+    </div>
+
+    <script>
+    function pemToDer(pem) {
+        const b64 = pem.replace(/-----[^-]+-----/g, '').replace(/\s/g, '');
+        const bin = atob(b64);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        return bytes.buffer;
+    }
+    function derToPem(der, label) {
+        const bin = String.fromCharCode(...new Uint8Array(der));
+        const b64 = btoa(bin).replace(/(.{64})/g, '$1\n').trim();
+        return `-----BEGIN ${label}-----\n${b64}\n-----END ${label}-----`;
+    }
+
+    document.addEventListener('alpine:init', () => {
+        Alpine.data('tool', () => ({
+            rootKey: '',
+            rootPubPem: '',
+            loadingRoot: false,
+            appId: '',
+            loadingDerive: false,
+            deriveError: '',
+            appPubPem: '',
+            appPrivPem: '',
+            callbackUrl: '',
+            loadingCred: false,
+            credError: '',
+            credential: '',
+            signMessage: '',
+            urlState: '',
+            authUrl: '',
+
+            async genRootKey() {
+                this.loadingRoot = true;
+                const key = await crypto.subtle.generateKey(
+                    { name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign']);
+                const pvtRaw = await crypto.subtle.exportKey('pkcs8', key.privateKey);
+                const pubRaw = await crypto.subtle.exportKey('spki', key.publicKey);
+                this.rootKey = derToPem(pvtRaw, 'PRIVATE KEY');
+                this.rootPubPem = derToPem(pubRaw, 'PUBLIC KEY');
+                this.loadingRoot = false;
+            },
+
+            async deriveKey() {
+                this.deriveError = '';
+                this.loadingDerive = true;
+                this.appPubPem = '';
+                this.appPrivPem = '';
+                try {
+                    const resp = await fetch('/tools/api/derive', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ root_key: this.rootKey, app_id: this.appId }),
+                    });
+                    const data = await resp.json();
+                    if (data.error) throw new Error(data.error);
+                    this.appPubPem = data.app_pub_pem;
+                    this.appPrivPem = data.app_priv_pem;
+                } catch(e) {
+                    this.deriveError = e.message;
+                }
+                this.loadingDerive = false;
+            },
+
+            async signCredential() {
+                this.credError = '';
+                this.loadingCred = true;
+                this.credential = '';
+                this.signMessage = '';
+                try {
+                    const resp = await fetch('/tools/api/sign', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            root_key: this.rootKey,
+                            app_id: this.appId,
+                            callback_url: this.callbackUrl,
+                        }),
+                    });
+                    const data = await resp.json();
+                    if (data.error) throw new Error(data.error);
+                    this.credential = data.credential;
+                    this.signMessage = data.sign_message;
+                } catch(e) {
+                    this.credError = e.message;
+                }
+                this.loadingCred = false;
+            },
+
+            buildUrl() {
+                const params = new URLSearchParams({
+                    app_id: this.appId,
+                    callback_url: this.callbackUrl,
+                    credential: this.credential,
+                });
+                if (this.urlState) params.set('state', this.urlState);
+                this.authUrl = `/flow/auth?${params.toString()}`;
+            }
+        }));
+    });
+    </script>
+</body>
+</html>

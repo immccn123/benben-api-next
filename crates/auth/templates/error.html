@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>错误 - 犇站 SSO</title>
+    <script>const _q=matchMedia('(prefers-color-scheme:dark)');document.documentElement.dataset.bsTheme=_q.matches?'dark':'light';_q.addEventListener('change',e=>document.documentElement.dataset.bsTheme=e.matches?'dark':'light');</script>
+    <link rel="stylesheet" href="/static/bootstrap.min.css">
+</head>
+<body class="min-vh-100 d-flex align-items-center justify-content-center p-3">
+    <div class="bg-body-secondary p-4 p-md-5 shadow-sm" style="max-width:420px;width:100%;border-left:4px solid var(--bs-danger);">
+        <header class="mb-4">
+            <h1 class="fw-bold text-uppercase mb-2" style="font-size:2rem;letter-spacing:-.03em;">Error</h1>
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-danger rounded-0 font-monospace text-uppercase" style="font-size:10px;letter-spacing:.05em;">FAULT</span>
+                <span class="font-monospace text-uppercase text-body-tertiary" style="font-size:11px;letter-spacing:.12em;">Authentication Failed</span>
+            </div>
+        </header>
+
+        <main>
+            <p class="small text-body-secondary mb-0 ps-3 border-start border-2 border-danger border-opacity-25" style="line-height:1.65;">{{ error }}</p>
+        </main>
+
+        <footer class="mt-5 pt-3 d-flex justify-content-end align-items-center gap-1" style="border-top:1px solid rgba(var(--bs-body-color-rgb),.08);">
+            <div class="bg-danger" style="width:2rem;height:3px;"></div>
+            <div class="bg-danger opacity-50" style="width:.6rem;height:3px;"></div>
+            <div class="bg-danger opacity-25" style="width:.6rem;height:3px;"></div>
+        </footer>
+    </div>
+</body>
+</html>
