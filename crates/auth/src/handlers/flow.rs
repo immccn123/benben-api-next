@@ -5,13 +5,13 @@ use axum::{
 use axum_extra::extract::cookie::{Cookie, CookieJar};
 use base64ct::{Base64UrlUnpadded, Encoding};
 use chrono::Utc;
+use nanoid::nanoid;
 use p256::ecdsa::Signature as P256Signature;
 use p256::ecdsa::signature::Verifier;
 use serde::Deserialize;
 use serde_json::json;
 use std::collections::HashMap;
 use url::form_urlencoded;
-use nanoid::nanoid;
 
 use crate::AppState;
 use crate::crypto::derive;
@@ -128,7 +128,9 @@ pub async fn callback(
         .unwrap_or_default();
     let username = user["username"].as_str().unwrap_or("").to_string();
 
-    let jar = jar.remove(sso_cookie("sso_nonce", "")).remove(sso_cookie("sso_app_id", ""));
+    let jar = jar
+        .remove(sso_cookie("sso_nonce", ""))
+        .remove(sso_cookie("sso_app_id", ""));
 
     let mut ctx = tera::Context::new();
     ctx.insert("username", &username);
@@ -206,8 +208,8 @@ fn verify_credential(
     callback_url: &str,
     credential: &str,
 ) -> Result<(), String> {
-    let root_pub = derive::root_pub_from_pem(&state.config.client_verify_key)
-        .ok_or("服务端根公钥无效")?;
+    let root_pub =
+        derive::root_pub_from_pem(&state.config.client_verify_key).ok_or("服务端根公钥无效")?;
 
     let app_vk = derive::derive_verifying_key(&root_pub, app_id);
 

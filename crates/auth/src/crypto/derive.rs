@@ -1,8 +1,8 @@
 use hmac::{Hmac, Mac, digest::KeyInit};
+use p256::ecdsa::{SigningKey, VerifyingKey};
 use p256::elliptic_curve::ff::PrimeField;
 use p256::elliptic_curve::sec1::ToSec1Point;
 use p256::{ProjectivePoint, PublicKey, Scalar, SecretKey};
-use p256::ecdsa::{SigningKey, VerifyingKey};
 use sha2::Sha256;
 
 type HmacSha256 = Hmac<Sha256>;
@@ -55,8 +55,7 @@ pub fn verifying_key_to_pem(vk: &VerifyingKey) -> String {
 }
 
 pub fn public_key_to_pem(pk: &PublicKey) -> String {
-    pkcs8::EncodePublicKey::to_public_key_pem(pk, pkcs8::LineEnding::LF)
-        .expect("encode public key")
+    pkcs8::EncodePublicKey::to_public_key_pem(pk, pkcs8::LineEnding::LF).expect("encode public key")
 }
 
 pub const JWT_DERIVE_ID: &str = "__jwt__";

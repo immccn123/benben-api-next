@@ -41,7 +41,10 @@ async fn main() {
         app = app
             .route("/tools/sign", get(auth::handlers::tools::sign_tool))
             .route("/tools/api/derive", post(auth::handlers::tools::api_derive))
-            .route("/tools/api/sign", post(auth::handlers::tools::api_sign_credential));
+            .route(
+                "/tools/api/sign",
+                post(auth::handlers::tools::api_sign_credential),
+            );
     }
 
     let app = app.with_state(state);

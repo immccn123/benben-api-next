@@ -161,6 +161,11 @@ pub fn verify_raw(
 ) -> bool {
     match key_type {
         KeyType::P256 => p256_verify_raw(public_key_sec1, message, signature_b64),
-        KeyType::Sm2 => sm2_verify_raw(distid.unwrap_or(""), public_key_sec1, message, signature_b64),
+        KeyType::Sm2 => sm2_verify_raw(
+            distid.unwrap_or(""),
+            public_key_sec1,
+            message,
+            signature_b64,
+        ),
     }
 }

@@ -1,4 +1,7 @@
-use axum::{extract::State, response::{Html, IntoResponse, Json, Response}};
+use axum::{
+    extract::State,
+    response::{Html, IntoResponse, Json, Response},
+};
 use base64ct::{Base64UrlUnpadded, Encoding};
 use p256::ecdsa::signature::Signer;
 use serde::Deserialize;
