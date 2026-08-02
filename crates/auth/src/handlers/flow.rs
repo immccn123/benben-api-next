@@ -53,6 +53,8 @@ pub async fn auth(
 
     let mut ctx = tera::Context::new();
     ctx.insert("cpo_url", &cpo_url);
+    ctx.insert("app_id", &q.app_id);
+    ctx.insert("is_dev", &q.app_id.starts_with("_-dev-_"));
     let html = state
         .tera
         .render("confirm.html", &ctx)
