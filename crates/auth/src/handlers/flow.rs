@@ -42,7 +42,7 @@ pub async fn auth(
         .add(sso_cookie("sso_app_id", &q.app_id));
 
     let cpo_url = format!(
-        "{}/oauth/authorize?response_type=code&client_id={}&redirect_uri={}&scope=openid profile&state={}",
+        "{}/oauth/authorize?response_type=code&client_id={}&redirect_uri={}&scope=openid profile link%3Aluogu&state={}",
         state.config.cpoauth_base,
         form_urlencoded::byte_serialize(state.config.cpoauth_client_id.as_bytes())
             .collect::<String>(),
